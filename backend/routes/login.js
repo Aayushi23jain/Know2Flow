@@ -31,13 +31,17 @@ router.post("/", async (req, res) => {
 
     const idToken = data.idToken;
 
-    // Step 2: Create a session cookie from idToken
+    // Step 2: Verify idToken to get user info (UID)
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+
+    // Step 3: Create a session cookie from idToken
     const expiresIn = 5 * 60 * 60 * 1000; // 5 hours
     const sessionCookie = await admin
       .auth()
       .createSessionCookie(idToken, { expiresIn });
 
-    // Step 3: Set session cookie in response
+    // Step 4: Set session cookie in response
     const options = {
       maxAge: expiresIn,
       httpOnly: true,
@@ -46,7 +50,12 @@ router.post("/", async (req, res) => {
     };
 
     res.cookie("session", sessionCookie, options);
-    res.status(200).json({ message: "Login successful ✅" });
+
+    // Step 5: Send userId back to frontend
+    res.status(200).json({
+      message: "Login successful ✅",
+      userId, // return UID so frontend can store and send in headers
+    });
   } catch (error) {
     console.error("Login error:", error.message);
     res.status(500).json({ error: "Internal server error" });

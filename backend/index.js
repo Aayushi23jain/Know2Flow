@@ -8,6 +8,7 @@ import cors from "cors";
 // Import Routes
 import signupRoute from "./routes/signup.js";
 import loginRoute from "./routes/login.js";
+import searchProfilesRoute from "./routes/searchProfiles.js";
 
 
 
@@ -18,6 +19,7 @@ app.use(bodyParser.json());
 // Routes
 app.use("/signup", signupRoute);
 app.use("/login", loginRoute);
+app.use("/search-profiles", searchProfilesRoute);
 
 // Start server
 app.listen(5000, () => console.log("Server running on port 5000"));
