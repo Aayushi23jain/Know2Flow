@@ -8,6 +8,15 @@ const router = express.Router();
 router.post("/", async (req, res) => {
   const { email, password } = req.body;
 
+  // Clear guard: ensure API key exists
+  if (!process.env.FIREBASE_API_KEY) {
+    console.error("🔴 Missing FIREBASE_API_KEY env var");
+    return res.status(500).json({
+      error: "Server misconfiguration",
+      details: "Missing FIREBASE_API_KEY. Set it in your backend .env",
+    });
+  }
+
   try {
     // Step 1: Sign in with Firebase REST API to get idToken
     const response = await fetch(
@@ -26,6 +35,7 @@ router.post("/", async (req, res) => {
     const data = await response.json();
 
     if (data.error) {
+      console.error("Firebase login error:", data.error);
       return res.status(400).json({ error: data.error.message });
     }
 

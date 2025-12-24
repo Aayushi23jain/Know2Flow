@@ -19,35 +19,38 @@ export default function Signup() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
+  setMessage("");
 
-    try {
-        if (data.success) {
-  window.location.href = "/login"; // redirect to login after signup
-}
-      const response = await fetch("http://localhost:5173/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include", // 🔑 include cookies for session
-        body: JSON.stringify({
-          ...formData,
-          teachSkills: formData.teachSkills.split(",").map((s) => s.trim()),
-          learnSkills: formData.learnSkills.split(",").map((s) => s.trim()),
-        }),
-      });
+  try {
+    const response = await fetch("http://localhost:5000/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        ...formData,
+        teachSkills: formData.teachSkills.split(",").map(s => s.trim()),
+        learnSkills: formData.learnSkills.split(",").map(s => s.trim()),
+      }),
+    });
 
-      const data = await response.json();
-      setMessage(data.message || "Signup failed ❌");
-
-      if (data.userId) {
-        localStorage.setItem("userId", data.userId);
-        window.location.href = "/"; // 🔑 redirect to homepage after signup
-      }
-    } catch (error) {
-      console.error("Signup error:", error);
-      setMessage("Error connecting to server ❌");
+    const data = await response.json();
+    console.log("Signup response:", response.status, data);
+    if (!response.ok) {
+      setMessage(data.details || data.error || "Signup failed ❌");
+      return;
     }
-  };
+
+    // ✅ Save user ID & redirect to dashboard
+    localStorage.setItem("userId", data.userId);
+    window.location.href = `/dashboard/${data.userId}`;
+
+  } catch (error) {
+    console.error("Signup error:", error);
+    setMessage("Server error ❌");
+  }
+};
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-200 via-purple-100 to-pink-200">
