@@ -1,9 +1,13 @@
 import express from "express";
 import fetch from "node-fetch"; // if not installed: npm install node-fetch
 import { admin } from "../firebase.js";
-
+import { db } from "../firebase.js";
 const router = express.Router();
-
+function isSameDay(a, b) {
+    return a.getUTCFullYear() === b.getUTCFullYear() &&
+    a.getUTCMonth() === b.getUTCMonth() &&
+   a.getUTCDate() === b.getUTCDate();
+ }
 // POST /login
 router.post("/", async (req, res) => {
   const { email, password } = req.body;
@@ -33,6 +37,22 @@ router.post("/", async (req, res) => {
     );
 
     const data = await response.json();
+    console.error("Firebase REST status:", response.status, "body:", data);
+
+    // If Google specifically returned API_KEY_INVALID, return a clear message
+    if (
+      response.status === 400 &&
+      data?.error?.message?.includes("API key not valid")
+    ) {
+      console.error(
+        "🔴 Invalid Firebase API key detected. Check FIREBASE_API_KEY and key restrictions."
+      );
+      return res.status(502).json({
+        error: "Invalid Firebase API key",
+        details:
+          "Verify FIREBASE_API_KEY env var, the key's project, and API/application restrictions in Google Cloud console.",
+      });
+    }
 
     if (data.error) {
       console.error("Firebase login error:", data.error);
@@ -55,12 +75,54 @@ router.post("/", async (req, res) => {
     const options = {
       maxAge: expiresIn,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // use true in production
-      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax", // was 'strict' — change to 'lax' so browser will send cookie for fetches
     };
 
     res.cookie("session", sessionCookie, options);
+    try {
+      const userRef = db.collection("users").doc(userId);
+      const snap = await userRef.get();
+      const now = new Date();
+      let newStreak = 1;
+      let newStars = 1;
 
+      if (snap.exists) {
+        const data = snap.data();
+       const prev = data.lastLogin ? (data.lastLogin.toDate ? data.lastLogin.toDate() : new Date(data.lastLogin)) : null;
+        const prevStreak = data.streak || 0;
+        const prevStars = data.stars || 0;
+
+        const today = now;
+        const yesterday = new Date(now);
+        yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+        if (prev && isSameDay(prev, today)) {
+          // already logged in today — don't change streak/stars
+         newStreak = prevStreak || 1;
+         newStars = prevStars || 0;
+        } else if (prev && isSameDay(prev, yesterday)) {
+          // consecutive-day login
+          newStreak = (prevStreak || 0) + 1;
+         newStars = (prevStars || 0) + 1;
+        } else {
+          // not consecutive -> reset streak, give star for today
+          newStreak = 1;
+          newStars = (prevStars || 0) + 1;
+        }
+      } else {
+        // no doc yet -> create minimal profile
+        await userRef.set({ createdAt: now, email: decodedToken.email || null, tokens: 1 });
+      }
+
+      await userRef.update({
+        lastLogin: admin.firestore.Timestamp.fromDate(now),
+        streak: newStreak,
+        stars: newStars,
+      });
+    } catch (err) {
+      console.warn("Failed to update login stats:", err.message || err);
+    }
     // Step 5: Send userId back to frontend
     res.status(200).json({
       message: "Login successful ✅",

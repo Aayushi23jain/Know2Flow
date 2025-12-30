@@ -6,6 +6,7 @@ import bodyParser from "body-parser";
 import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
+import cookieParser from "cookie-parser";
 
 import signupRoute from "./routes/signup.js";
 import loginRoute from "./routes/login.js";
@@ -21,6 +22,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(bodyParser.json());
+app.use(cookieParser());
 
 // Routes
 app.use("/signup", signupRoute);

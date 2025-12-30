@@ -42,6 +42,8 @@ router.post("/", async (req, res) => {
       country,
       tokens: 1,
       createdAt: new Date(),
+      streak: 0,
+      stars: 0,
     });
     console.log("✅ Firestore saved");
 
@@ -54,49 +56,58 @@ router.post("/", async (req, res) => {
     const learnEmbedding = learnText ? await generateEmbedding(learnText) : [];
 
     console.log("📌 Embedding lengths:", teachEmbedding.length, learnEmbedding.length);
-    try {
-  if (teachEmbedding.length && learnEmbedding.length) {
-    await index.upsert([
-      {
-        id: `${userRecord.uid}-teach`,
-        values: teachEmbedding,
-        metadata: { userId: userRecord.uid, type: "teach" },
-      },
-      {
-        id: `${userRecord.uid}-learn`,
-        values: learnEmbedding,
-        metadata: { userId: userRecord.uid, type: "learn" },
-      },
-    ]);
-  }
-} catch (pineconeError) {
-  console.error("⚠️ Pinecone error (ignored):", pineconeError.message);
-}
 
-    // if (teachEmbedding.length && learnEmbedding.length) {
-    //   console.log("🌲 Upserting into Pinecone...");
-    //   await index.upsert([
-    //     {
-    //       id: `${userRecord.uid}-teach`,
-    //       values: teachEmbedding,
-    //       metadata: {
-    //         userId: userRecord.uid,
-    //         type: "teach",
-    //         skills: teachSkills,
-    //       },
-    //     },
-    //     {
-    //       id: `${userRecord.uid}-learn`,
-    //       values: learnEmbedding,
-    //       metadata: {
-    //         userId: userRecord.uid,
-    //         type: "learn",
-    //         skills: learnSkills,
-    //       },
-    //     },
-    //   ]);
-    //   console.log("✅ Pinecone upsert successful");
-    // }
+    async function tryUpsert(userId, upserts, retries = 2) {
+      let attempt = 0;
+      while (true) {
+        try {
+          await index.upsert(upserts);
+          return true;
+        } catch (err) {
+          console.error(`⚠️ Pinecone upsert attempt ${attempt + 1} failed:`, err.message || err);
+          if (attempt >= retries) {
+            return false;
+          }
+          attempt++;
+          await new Promise(r => setTimeout(r, 200 * (2 ** attempt)));
+        }
+      }
+    }
+
+    let upsertSuccess = true;
+    try {
+      const toUpsert = [];
+      if (teachEmbedding.length) {
+        toUpsert.push({
+          id: `${userRecord.uid}-teach`,
+          values: teachEmbedding,
+          metadata: { userId: userRecord.uid, type: "teach", skills: teachSkills },
+        });
+      }
+      if (learnEmbedding.length) {
+        toUpsert.push({
+          id: `${userRecord.uid}-learn`,
+          values: learnEmbedding,
+          metadata: { userId: userRecord.uid, type: "learn", skills: learnSkills },
+        });
+      }
+
+      if (toUpsert.length) {
+        upsertSuccess = await tryUpsert(userRecord.uid, toUpsert);
+      }
+    } catch (err) {
+      console.error("⚠️ Unhandled Pinecone error:", err);
+      upsertSuccess = false;
+    }
+
+    // Update Firestore so future tooling knows status
+    try {
+      await db.collection("users").doc(userRecord.uid).update({
+        embeddingsStatus: upsertSuccess ? "ready" : "failed"
+      });
+    } catch (err) {
+      console.warn("⚠️ Failed to update embeddingsStatus in Firestore:", err.message || err);
+    }
 
     res.status(201).json({
       message: "User created successfully",
