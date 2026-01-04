@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const pinecone = new Pinecone({ apiKey: process.env.PINECONE_API_KEY });
-const INDEX_NAME = process.env.PINECONE_INDEX_NAME || "users-skills";
+const INDEX_NAME = process.env.PINECONE_INDEX_NAME || "users-skills-2";
 const index = pinecone.Index(INDEX_NAME);
 
 // Gemini client
@@ -20,7 +20,7 @@ export async function generateEmbedding(text, { normalize = true, retries = 2 } 
     throw new Error("Missing GEMINI_API_KEY environment variable");
   }
 
-  const model = genAI.getGenerativeModel({ model: "embedding-001" });
+  const model = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
   let attempt = 0;
 
   while (true) {

@@ -22,12 +22,13 @@ export default function Login() {
 
       if (!res.ok) {
         alert(data.error || "Login failed");
+        localStorage.removeItem("userId"); // clear any stale userId
         return;
       }
 
       localStorage.setItem("userId", data.userId);
       navigate(`/dashboard/${data.userId}`);
-    } catch (err) {
+    } catch {
       alert("Server error ❌");
     }
   };

@@ -19,38 +19,37 @@ export default function Signup() {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setMessage("");
+    e.preventDefault();
+    setMessage("");
 
-  try {
-    const response = await fetch("http://localhost:5000/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        ...formData,
-        teachSkills: formData.teachSkills.split(",").map(s => s.trim()),
-        learnSkills: formData.learnSkills.split(",").map(s => s.trim()),
-      }),
-    });
+    try {
+      const response = await fetch("http://localhost:5000/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          ...formData,
+          teachSkills: formData.teachSkills.split(",").map((s) => s.trim()),
+          learnSkills: formData.learnSkills.split(",").map((s) => s.trim()),
+        }),
+      });
 
-    const data = await response.json();
-    console.log("Signup response:", response.status, data);
-    if (!response.ok) {
-      setMessage(data.details || data.error || "Signup failed ❌");
-      return;
+      const data = await response.json();
+      console.log("Signup response:", response.status, data);
+      if (!response.ok) {
+        setMessage(data.details || data.error || "Signup failed ❌");
+        localStorage.removeItem("userId"); // clear any stale userId
+        return;
+      }
+
+      // ✅ Save user ID & redirect to dashboard
+      localStorage.setItem("userId", data.userId);
+      window.location.href = `/dashboard/${data.userId}`;
+    } catch (error) {
+      console.error("Signup error:", error);
+      setMessage("Server error ❌");
     }
-
-    // ✅ Save user ID & redirect to dashboard
-    localStorage.setItem("userId", data.userId);
-    window.location.href = `/dashboard/${data.userId}`;
-
-  } catch (error) {
-    console.error("Signup error:", error);
-    setMessage("Server error ❌");
-  }
-};
-
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-200 via-purple-100 to-pink-200">
@@ -59,7 +58,10 @@ export default function Signup() {
           Create Your Account
         </h2>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-2 gap-4"
+        >
           <input
             type="text"
             name="name"
@@ -157,16 +159,20 @@ export default function Signup() {
         </form>
 
         {message && (
-          <p className="text-center text-gray-700 mt-6 font-semibold">{message}</p>
+          <p className="text-center text-gray-700 mt-6 font-semibold">
+            {message}
+          </p>
         )}
 
         <p className="text-center text-gray-600 mt-6">
-  Already have an account?{" "}
-  <a href="/login" className="text-indigo-500 font-bold hover:underline">
-    Login
-  </a>
-</p>
-
+          Already have an account?{" "}
+          <a
+            href="/login"
+            className="text-indigo-500 font-bold hover:underline"
+          >
+            Login
+          </a>
+        </p>
       </div>
     </div>
   );
