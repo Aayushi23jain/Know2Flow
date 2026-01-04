@@ -13,6 +13,8 @@ export default function Signup() {
   });
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false); // 🔑 toggle password
+  const [loading, setLoading] = useState(false);
+
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -21,6 +23,7 @@ export default function Signup() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setMessage("");
+    setLoading(true);
 
     try {
       const response = await fetch("http://localhost:5000/signup", {
@@ -35,10 +38,13 @@ export default function Signup() {
       });
 
       const data = await response.json();
+      
       console.log("Signup response:", response.status, data);
+
       if (!response.ok) {
         setMessage(data.details || data.error || "Signup failed ❌");
         localStorage.removeItem("userId"); // clear any stale userId
+        setLoading(false);
         return;
       }
 
@@ -48,6 +54,7 @@ export default function Signup() {
     } catch (error) {
       console.error("Signup error:", error);
       setMessage("Server error ❌");
+      setLoading(false);
     }
   };
 
@@ -150,12 +157,30 @@ export default function Signup() {
             className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
 
-          <button
+          {/* <button
             type="submit"
             className="col-span-2 w-full bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-md transition hover:bg-indigo-600"
           >
             Sign Up
-          </button>
+          </button> */}
+
+          <button
+  type="submit"
+  disabled={loading}
+  className={`col-span-2 w-full flex items-center justify-center gap-2 
+    bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-md transition
+    ${loading ? "opacity-70 cursor-not-allowed" : "hover:bg-indigo-600"}`}
+>
+  {loading ? (
+    <>
+      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+      Creating account...
+    </>
+  ) : (
+    "Sign Up"
+  )}
+</button>
+
         </form>
 
         {message && (

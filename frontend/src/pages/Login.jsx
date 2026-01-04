@@ -6,9 +6,21 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+
+  const spinnerStyle = document.createElement("style");
+spinnerStyle.innerHTML = `
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}`;
+document.head.appendChild(spinnerStyle);
+
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    setLoading(true);
 
     try {
       const res = await fetch("http://localhost:5000/login", {
@@ -23,6 +35,7 @@ export default function Login() {
       if (!res.ok) {
         alert(data.error || "Login failed");
         localStorage.removeItem("userId"); // clear any stale userId
+        setLoading(false);
         return;
       }
 
@@ -30,6 +43,7 @@ export default function Login() {
       navigate(`/dashboard/${data.userId}`);
     } catch {
       alert("Server error ❌");
+      setLoading(false);
     }
   };
 
@@ -112,21 +126,43 @@ export default function Login() {
           </div>
 
           <button
-            type="submit"
-            style={{
-              margin: "20px 0",
-              padding: "12px",
-              borderRadius: "10px",
-              border: "none",
-              background: "linear-gradient(135deg, #667eea, #764ba2)",
-              color: "white",
-              fontWeight: "bold",
-              cursor: "pointer",
-              transition: "0.3s",
-            }}
-          >
-            Login
-          </button>
+  type="submit"
+  disabled={loading}
+  style={{
+    margin: "20px 0",
+    padding: "12px",
+    borderRadius: "10px",
+    border: "none",
+    background: "linear-gradient(135deg, #667eea, #764ba2)",
+    color: "white",
+    fontWeight: "bold",
+    cursor: loading ? "not-allowed" : "pointer",
+    opacity: loading ? 0.7 : 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "10px",
+  }}
+>
+  {loading ? (
+    <>
+      <span
+        style={{
+          width: "18px",
+          height: "18px",
+          border: "2px solid white",
+          borderTop: "2px solid transparent",
+          borderRadius: "50%",
+          animation: "spin 1s linear infinite",
+        }}
+      />
+      Logging in...
+    </>
+  ) : (
+    "Login"
+  )}
+</button>
+
         </form>
 
         <p style={{ fontSize: "14px", marginTop: "10px", color: "#666" }}>
