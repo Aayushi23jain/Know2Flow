@@ -25,43 +25,76 @@ export default function Matches() {
   }, [userId]);
 
   return (
-    <div className="min-h-screen bg-black text-white px-8 py-10">
-      <h1 className="text-4xl font-bold text-yellow-400 mb-8">
+    <div className="min-h-screen relative overflow-hidden text-white px-8 py-10
+    bg-gradient-to-br from-[#0b0b10] via-[#111421] to-[#0a0c14]">
+
+      {/* ambient background glow */}
+      <div className="absolute -top-40 -left-40 w-[420px] h-[420px] bg-yellow-400/10 rounded-full blur-[140px]" />
+      <div className="absolute bottom-[-140px] right-[-140px] w-[420px] h-[420px] bg-orange-400/10 rounded-full blur-[140px]" />
+
+      <h1 className="relative text-4xl font-extrabold text-transparent bg-clip-text
+      bg-gradient-to-r from-yellow-400 to-orange-400 mb-10">
         Skill Matches
       </h1>
 
-      {loading && <p className="text-gray-400">Finding best matches...</p>}
-
-      {!loading && matches.length === 0 && (
-        <p className="text-gray-400">No matching profiles found.</p>
+      {loading && (
+        <p className="relative text-gray-400 animate-pulse">
+          Finding best matches...
+        </p>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {!loading && matches.length === 0 && (
+        <p className="relative text-gray-400">
+          No matching profiles found.
+        </p>
+      )}
+
+      <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         {matches.map((m) => (
           <div
             key={m.userId}
-            className="bg-gray-900 border border-gray-700 rounded-xl p-6 shadow-lg"
+            className="relative rounded-2xl p-6
+            bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10]
+            border border-white/10
+            shadow-[0_35px_80px_rgba(0,0,0,0.95)]
+            hover:shadow-[0_45px_110px_rgba(0,0,0,1)]
+            transition-all duration-300"
           >
-            <h2 className="text-xl font-semibold">{m.name}</h2>
+            {/* subtle inner glow */}
+            <div className="absolute inset-0 rounded-2xl
+            bg-gradient-to-br from-yellow-400/5 via-transparent to-orange-400/5 pointer-events-none" />
 
-            <p className="text-sm text-gray-400 mt-2">
+            <h2 className="relative text-xl font-semibold">
+              {m.name}
+            </h2>
+
+            <p className="relative text-sm text-gray-400 mt-3">
               Match Score:{" "}
               <span className="text-yellow-400 font-bold">
                 {(m.finalScore * 100).toFixed(0)}%
               </span>
             </p>
 
-            <div className="mt-4 flex gap-3">
+            <div className="relative mt-6 flex gap-4">
+              {/* View Profile */}
               <button
                 onClick={() => navigate(`/profile/${m.userId}`)}
-                className="bg-yellow-400 text-black px-4 py-2 rounded"
+                className="bg-gradient-to-r from-yellow-400 to-orange-400
+                text-black px-5 py-2 rounded-full font-semibold
+                shadow-[0_15px_40px_rgba(150,140,21,0.45)]
+                hover:shadow-[0_20px_60px_rgba(150,140,21,0.7)]
+                hover:scale-105 transition"
               >
                 View Profile
               </button>
 
+              {/* Chat */}
               <button
                 onClick={() => alert("Chat coming soon")}
-                className="border border-gray-600 px-4 py-2 rounded"
+                className="bg-gradient-to-br from-[#1a1d2b] to-[#0b0c10]
+                border border-white/10 text-gray-100 px-5 py-2 rounded-full
+                shadow-[0_12px_35px_rgba(0,0,0,0.9)]
+                hover:bg-[#1f2233] hover:scale-105 transition"
               >
                 Chat
               </button>
@@ -72,7 +105,7 @@ export default function Matches() {
 
       <button
         onClick={() => navigate(-1)}
-        className="mt-10 text-gray-400 underline"
+        className="relative mt-12 text-gray-400 underline hover:text-white transition"
       >
         ← Back
       </button>
