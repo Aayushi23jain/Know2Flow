@@ -15,13 +15,12 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-function jaccard(a = [], b = []) {
-  const setA = new Set((a || []).map(s => (s || "").toLowerCase()));
+function intersectionCount(a = [], b = []) {
   const setB = new Set((b || []).map(s => (s || "").toLowerCase()));
-  const inter = [...setA].filter(x => setB.has(x)).length;
-  const union = new Set([...setA, ...setB]).size || 1;
-  return inter / union;
+  return (a || []).filter(s => setB.has((s || "").toLowerCase())).length;
 }
+
+
 
 // Ensure embeddings only when Pinecone is available. Uses safeFetch and handles INDEX_NOT_FOUND gracefully.
 async function ensureEmbeddingsForUser(userId, userData) {
@@ -137,27 +136,68 @@ router.post("/", async (req, res) => {
 
     // Score candidates: use embeddings if available, else fallback to skill-overlap
     const scored = candidates.map((c) => {
-      if (useEmbeddings) {
-        const teachVec = vectors[`${c.id}-teach`]?.values || null;
-        const learnVec = vectors[`${c.id}-learn`]?.values || null;
+  // 1️⃣ STRICT SKILL INTERSECTION CHECK (ALWAYS)
+  const learnIntersection = intersectionCount(
+    user.learnSkills || [],
+    c.teachSkills || []
+  );
 
-        // Both user and candidate embeddings must exist to use embedding-based scoring
-        if (userLearnEmbedding && teachVec && userTeachEmbedding && learnVec) {
-          const learnScore = cosineSimilarity(userLearnEmbedding, teachVec);
-          const teachScore = cosineSimilarity(userTeachEmbedding, learnVec);
-          const finalScore = ((learnScore ?? 0) + (teachScore ?? 0)) / 2;
-          return { userId: c.id, name: c.name || "Unnamed", method: "embedding", learnScore, teachScore, finalScore };
-        }
-      }
+  const teachIntersection = intersectionCount(
+    user.teachSkills || [],
+    c.learnSkills || []
+  );
 
-      // Fallback: skill overlap scoring (Jaccard)
-      const learnScore = jaccard(user.learnSkills || [], c.teachSkills || []);
-      const teachScore = jaccard(user.teachSkills || [], c.learnSkills || []);
-      const finalScore = (learnScore + teachScore) / 2;
-      return { userId: c.id, name: c.name || "Unnamed", method: "skill-overlap", learnScore, teachScore, finalScore };
-    });
+  // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
+  if (learnIntersection === 0 && teachIntersection === 0) {
+    return null;
+  }
 
-    const finalResults = scored.filter(s => s.finalScore && s.finalScore > 0).sort((a, b) => b.finalScore - a.finalScore).slice(0, 10);
+  // 2️⃣ IF EMBEDDINGS AVAILABLE → USE THEM FOR SCORING
+  if (useEmbeddings) {
+    const teachVec = vectors[`${c.id}-teach`]?.values || null;
+    const learnVec = vectors[`${c.id}-learn`]?.values || null;
+
+    if (userLearnEmbedding && teachVec && userTeachEmbedding && learnVec) {
+      const learnScore = cosineSimilarity(userLearnEmbedding, teachVec);
+      const teachScore = cosineSimilarity(userTeachEmbedding, learnVec);
+      const finalScore = ((learnScore ?? 0) + (teachScore ?? 0)) / 2;
+
+      return {
+        userId: c.id,
+        name: c.name || "Unnamed",
+        method: "embedding",
+        learnScore,
+        teachScore,
+        finalScore
+      };
+    }
+  }
+
+  // 3️⃣ FALLBACK: PURE INTERSECTION SCORE
+  const totalUserSkills =
+    (user.learnSkills?.length || 0) +
+    (user.teachSkills?.length || 0);
+
+  const finalScore =
+    totalUserSkills === 0
+      ? 0
+      : (learnIntersection + teachIntersection) / totalUserSkills;
+
+  return {
+    userId: c.id,
+    name: c.name || "Unnamed",
+    method: "skill-intersection",
+    learnScore: learnIntersection,
+    teachScore: teachIntersection,
+    finalScore
+  };
+});
+
+
+    const finalResults = scored
+  .filter(Boolean)                 // ⬅ removes nulls (NO-MATCH users)
+  .sort((a, b) => b.finalScore - a.finalScore)
+  .slice(0, 10);
 
     if (!finalResults.length) {
       return res.status(200).json({ matches: [], hint: "No matches found. Ensure users have skills defined." });
