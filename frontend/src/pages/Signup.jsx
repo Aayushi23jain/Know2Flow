@@ -1,4 +1,11 @@
 import React, { useState } from "react";
+import { auth } from "../firebase";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut,
+} from "firebase/auth";
+
 
 export default function Signup() {
   const [formData, setFormData] = useState({
@@ -12,7 +19,7 @@ export default function Signup() {
     country: "",
   });
   const [message, setMessage] = useState("");
-  const [showPassword, setShowPassword] = useState(false); // 🔑 toggle password
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
 
@@ -26,31 +33,55 @@ export default function Signup() {
     setLoading(true);
 
     try {
-      const response = await fetch("http://localhost:5000/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          ...formData,
-          teachSkills: formData.teachSkills.split(",").map((s) => s.trim()),
-          learnSkills: formData.learnSkills.split(",").map((s) => s.trim()),
-        }),
-      });
 
-      const data = await response.json();
-      
-      console.log("Signup response:", response.status, data);
+      // 1️⃣ Create user in Firebase Auth (client side)
+    const userCredential = await createUserWithEmailAndPassword(
+      auth,
+      formData.email,
+      formData.password
+    );
 
-      if (!response.ok) {
-        setMessage(data.details || data.error || "Signup failed ❌");
-        localStorage.removeItem("userId"); // clear any stale userId
-        setLoading(false);
-        return;
-      }
+    const user = userCredential.user;
 
-      // ✅ Save user ID & redirect to dashboard
-      localStorage.setItem("userId", data.userId);
-      window.location.href = `/dashboard/${data.userId}`;
+    console.log("Before sendEmailVerification");
+
+    // 2️⃣ Send verification email
+    await sendEmailVerification(user, {
+  url: "http://localhost:5173/login",
+});
+
+console.log("After sendEmailVerification");
+
+
+      // 3️⃣ Call backend to save user data (same as before)
+    const response = await fetch("http://localhost:5000/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({
+        ...formData,
+        teachSkills: formData.teachSkills.split(",").map((s) => s.trim()),
+        learnSkills: formData.learnSkills.split(",").map((s) => s.trim()),
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.details || data.error || "Signup failed ❌");
+      setLoading(false);
+      return;
+    }
+
+    // 4️⃣ IMPORTANT: Log out user until email is verified
+    await signOut(auth);
+
+    // 5️⃣ Show verification message
+    setMessage(
+      "📧 Verification link sent to your email. Please verify your email and then login."
+    );
+
+    setLoading(false);
     } catch (error) {
       console.error("Signup error:", error);
       setMessage("Server error ❌");

@@ -23,13 +23,10 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    console.log("🔥 Creating Firebase user...");
-    const userRecord = await admin.auth().createUser({
-      email,
-      password,
-      displayName: name,
-    });
-    console.log("✅ Firebase user created:", userRecord.uid);
+    console.log("🔐 Fetching existing Firebase user...");
+const userRecord = await admin.auth().getUserByEmail(email);
+console.log("✅ Firebase user exists:", userRecord.uid);
+
 
     console.log("💾 Saving user to Firestore...");
     await db.collection("users").doc(userRecord.uid).set({
@@ -132,6 +129,10 @@ router.post("/", async (req, res) => {
 
     // --- AUTO-LOGIN: create session cookie after signup ---
     try {
+      // ✅ BLOCK auto-login if email is not verified
+  if (!userRecord.emailVerified) {
+    console.log("⏳ Email not verified. Skipping auto-login.");
+  }
       // Step 1: Sign in with Firebase REST API to get idToken
       const response = await fetch(
         `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,

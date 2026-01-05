@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { auth } from "../firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -23,27 +26,44 @@ document.head.appendChild(spinnerStyle);
     setLoading(true);
 
     try {
-      const res = await fetch("http://localhost:5000/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
+    // 1️⃣ Firebase login
+    const userCredential = await signInWithEmailAndPassword(
+      auth,
+      email,
+      password
+    );
 
-      const data = await res.json();
+    const user = userCredential.user;
 
-      if (!res.ok) {
-        alert(data.error || "Login failed");
-        localStorage.removeItem("userId"); // clear any stale userId
-        setLoading(false);
-        return;
-      }
-
-      localStorage.setItem("userId", data.userId);
-      navigate(`/dashboard/${data.userId}`);
-    } catch {
-      alert("Server error ❌");
+    // 2️⃣ Check email verification
+    if (!user.emailVerified) {
+      alert("❌ Please verify your email before logging in.");
+      await auth.signOut();
       setLoading(false);
+      return;
+    }
+
+    // 3️⃣ Backend login (same as before)
+    const res = await fetch("http://localhost:5000/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Login failed");
+      setLoading(false);
+      return;
+    }
+
+    localStorage.setItem("userId", data.userId);
+    navigate(`/dashboard/${data.userId}`);
+  } catch (error) {
+    alert(error.message || "Login failed ❌");
+    setLoading(false);
     }
   };
 
