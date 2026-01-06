@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
+
 export default function Dashboard() {
   const { userId: paramUserId } = useParams();
   const userId = paramUserId || localStorage.getItem("userId");
@@ -87,8 +88,16 @@ backdrop-blur-md border-b border-white/5">
         
         <a href="/challenge" className="hover:text-white">Challenge</a>
         <a href="/summary" className="hover:text-white">Summary</a>
-        <a href="/leaderboard" className="hover:text-white">LeaderBoard</a>
+      {/*  <a href="/leaderboard" className="hover:text-white">LeaderBoard</a> */}
+        <button 
+           onClick={() => navigate(`/leaderboard/${userId}`)} 
+          className="hover:text-white transition-colors"
+        >
+          LeaderBoard
+        </button>
       </nav>
+      
+
 
       <div className="hidden md:flex items-center gap-4 text-sm">
         
