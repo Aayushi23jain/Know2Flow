@@ -68,7 +68,7 @@ backdrop-blur-md border-b border-white/5">
       <nav className="hidden md:flex gap-6 text-sm text-gray-300">
         
         <a href="/challenge" className="hover:text-white">Challenge</a>
-        <a href="/feedback" className="hover:text-white">Feedback</a>
+        {/* <a href="/feedback" className="hover:text-white">Feedback</a> */}
         <a href="/leaderboard" className="hover:text-white">LeaderBoard</a>
       </nav>
 

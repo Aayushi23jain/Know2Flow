@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
@@ -62,8 +61,14 @@ export default function Profile() {
         credentials: "include",
         body: JSON.stringify({
           ...form,
-          teachSkills: form.teachSkillsCSV.split(",").map(s => s.trim()).filter(Boolean),
-          learnSkills: form.learnSkillsCSV.split(",").map(s => s.trim()).filter(Boolean),
+          teachSkills: form.teachSkillsCSV
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
+          learnSkills: form.learnSkillsCSV
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean),
         }),
       });
       if (!res.ok) throw new Error("Failed to save");
@@ -85,16 +90,13 @@ export default function Profile() {
     );
 
   if (error)
-    return (
-      <div className="min-h-screen p-6 text-red-400">
-        Error: {error}
-      </div>
-    );
+    return <div className="min-h-screen p-6 text-red-400">Error: {error}</div>;
 
   return (
-    <div className="min-h-screen relative overflow-hidden text-white p-6
-    bg-gradient-to-br from-[#0b0b10] via-[#111421] to-[#0a0c14]">
-
+    <div
+      className="min-h-screen relative overflow-hidden text-white p-6
+    bg-gradient-to-br from-[#0b0b10] via-[#111421] to-[#0a0c14]"
+    >
       {/* ambient glow */}
       <div className="absolute -top-40 -left-40 w-[420px] h-[420px] bg-yellow-400/10 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-120px] right-[-120px] w-[420px] h-[420px] bg-orange-400/10 rounded-full blur-[140px]" />
@@ -107,24 +109,28 @@ export default function Profile() {
       </button>
 
       {/* PROFILE CARD */}
-      <div className="relative max-w-3xl mx-auto rounded-2xl p-8
+      <div
+        className="relative max-w-3xl mx-auto rounded-2xl p-8
       bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10]
       border border-white/10
       shadow-[0_45px_110px_rgba(0,0,0,0.95)]
-      backdrop-blur">
-
+      backdrop-blur"
+      >
         {/* inner glow */}
-        <div className="absolute inset-0 rounded-2xl
-        bg-gradient-to-br from-yellow-400/5 via-transparent to-orange-400/5 pointer-events-none" />
+        <div
+          className="absolute inset-0 rounded-2xl
+        bg-gradient-to-br from-yellow-400/5 via-transparent to-orange-400/5 pointer-events-none"
+        />
 
         {/* HEADER */}
         <div className="relative flex items-center justify-between gap-6">
           <div className="flex items-center gap-6">
-            <div className="w-20 h-20 rounded-full
+            <div
+              className="w-20 h-20 rounded-full
 bg-gradient-to-br from-yellow-400 to-orange-400
 flex items-center justify-center text-black font-bold text-2xl
-shadow-[0_6px_16px_rgba(0,0,0,0.45)]">
-
+shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
+            >
               {user.name?.[0]?.toUpperCase() || "U"}
             </div>
 
@@ -137,9 +143,21 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]">
             </div>
           </div>
 
+          <div className="flex items-center gap-1 ml-4">
+  {[1, 2, 3, 4, 5].map((star) => (
+    <span
+      key={star}
+      className={`text-2xl ${star <= 4 ? "text-yellow-400" : "text-gray-500"}`}
+      title={`${4} out of 5 stars`}
+    >
+      ★
+    </span>
+  ))}
+</div>
+
           {isOwner && (
             <button
-              onClick={() => setEditMode(v => !v)}
+              onClick={() => setEditMode((v) => !v)}
               className="bg-gradient-to-r from-yellow-400 to-orange-400
               text-black px-4 py-2 rounded-full font-semibold
               shadow-[0_15px_40px_rgba(250,204,21,0.45)]
@@ -157,7 +175,10 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]">
               <h3 className="font-semibold text-gray-300">Teach Skills</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(user.teachSkills || []).map((s, i) => (
-                  <span key={i} className="bg-gray-800/80 px-3 py-1 rounded-full text-sm">
+                  <span
+                    key={i}
+                    className="bg-gray-800/80 px-3 py-1 rounded-full text-sm"
+                  >
                     {s}
                   </span>
                 ))}
@@ -168,47 +189,71 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]">
               <h3 className="font-semibold text-gray-300">Learn Skills</h3>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(user.learnSkills || []).map((s, i) => (
-                  <span key={i} className="bg-gray-800/80 px-3 py-1 rounded-full text-sm">
+                  <span
+                    key={i}
+                    className="bg-gray-800/80 px-3 py-1 rounded-full text-sm"
+                  >
                     {s}
                   </span>
                 ))}
               </div>
             </div>
-          <div className="mt-8 flex gap-120">
-  {/* MESSAGE */}
-  <button
-    className="px-5 py-2 rounded-full
-    bg-gradient-to-r from-yellow-400/15 to-orange-400/15
-    border border-yellow-400/30
-    text-white-300
-    hover:from-yellow-400/25 hover:to-orange-400/25
-    hover:text-yellow-200
-    transition"
-    onClick={() => alert('Message coming soon!')}
-  >
-    Message
-  </button>
+            <div className="mt-8 flex justify-between items-center">
+              <div className="flex gap-4">
+                {/* MESSAGE */}
+                <button
+                  className="px-5 py-2 rounded-full
+      bg-gradient-to-r from-yellow-400/15 to-orange-400/15
+      border border-yellow-400/30
+      text-white-300
+      hover:from-yellow-400/25 hover:to-orange-400/25
+      hover:text-yellow-200
+      transition"
+                  onClick={() => alert("Message coming soon!")}
+                >
+                  Message
+                </button>
 
-  {/* REPORT */}
-  <button
-    className="px-5 py-2
+                {/* FEEDBACK */}
+                <button
+                  className="px-5 py-2 rounded-full
+      bg-gradient-to-r from-yellow-400/15 to-orange-400/15
+      border border-yellow-400/30
+      text-white-300
+      hover:from-yellow-400/25 hover:to-orange-400/25
+      hover:text-yellow-200
+      transition"
+                  onClick={() => navigate(`/feedback/${userId}`)}
+                >
+                  Feedback
+                </button>
+              </div>
+
+              {/* REPORT */}
+              <button
+                className="px-5 py-2
     bg-gradient-to-r from-red-500/10 to-red-600/10
     border border-red-500/30
     text-white-500
     hover:from-red-500/20 hover:to-red-600/20
     hover:text-red-300
     transition"
-    onClick={() => alert('Report user')}
-  >
-    Report
-  </button>
-</div>
-
-
+                onClick={() => alert("Report user")}
+              >
+                Report
+              </button>
+            </div>
           </>
         ) : (
           <div className="mt-8 space-y-4">
-            {["name","country","experienceLevel","language","teachSkillsCSV","learnSkillsCSV"].map((f) => (
+            {[
+              "name",
+              "country",
+              "experienceLevel",
+              "language",
+              "teachSkillsCSV",
+              "learnSkillsCSV",
+            ].map((f) => (
               <input
                 key={f}
                 value={form[f]}
