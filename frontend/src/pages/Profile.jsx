@@ -70,6 +70,7 @@ export default function Profile() {
       setUser(await res.json());
       setEditMode(false);
     } catch (e) {
+      console.log(e.Error);
       alert("Save failed");
     } finally {
       setSaving(false);
@@ -173,7 +174,7 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]">
                 ))}
               </div>
             </div>
-           <div className="mt-8 flex gap-120">
+          <div className="mt-8 flex gap-120">
   {/* MESSAGE */}
   <button
     className="px-5 py-2 rounded-full
