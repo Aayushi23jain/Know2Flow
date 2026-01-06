@@ -6,6 +6,7 @@ import Signup from "./pages/Signup";
 import Matches from "./pages/Matches";
 import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
+import ChatPage from "./pages/ChatPage";
 function App() {
   return (
     <Routes>
@@ -15,6 +16,7 @@ function App() {
       <Route path="/dashboard/:userId" element={<Dashboard />} />
       <Route path="/matches/:userId" element={<Matches />} />
       <Route path="/profile/:userId" element={<Profile />} />
+      <Route path="/chat/:userId" element={<ChatPage />} />
     </Routes>
   );
 }

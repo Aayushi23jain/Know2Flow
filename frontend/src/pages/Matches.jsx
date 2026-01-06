@@ -88,16 +88,7 @@ export default function Matches() {
                 View Profile
               </button>
 
-              {/* Chat */}
-              <button
-                onClick={() => alert("Chat coming soon")}
-                className="bg-gradient-to-br from-[#1a1d2b] to-[#0b0c10]
-                border border-white/10 text-gray-100 px-5 py-2 rounded-full
-                shadow-[0_12px_35px_rgba(0,0,0,0.9)]
-                hover:bg-[#1f2233] hover:scale-105 transition"
-              >
-                Chat
-              </button>
+              
             </div>
           </div>
         ))}

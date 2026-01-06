@@ -1,8 +1,10 @@
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 export default function Profile() {
+
+
   const { userId } = useParams();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
@@ -19,6 +21,9 @@ export default function Profile() {
     learnSkillsCSV: "",
   });
   const [saving, setSaving] = useState(false);
+  const [authLoading, setAuthLoading] = useState(true);
+  
+
 
   useEffect(() => {
     setLoading(true);
@@ -48,11 +53,12 @@ export default function Profile() {
     fetch("http://localhost:5000/user/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => data?.userId && setMeUid(data.userId))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setAuthLoading(false));
   }, []);
+  
 
-  const isOwner = meUid && meUid === userId;
-
+  const isOwner = !authLoading && meUid === userId;
   const onSave = async () => {
     setSaving(true);
     try {
@@ -173,35 +179,43 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]">
                 ))}
               </div>
             </div>
-           <div className="mt-8 flex gap-120">
-  {/* MESSAGE */}
-  <button
-    className="px-5 py-2 rounded-full
+            {!authLoading && !isOwner && (
+  <div className="mt-8 flex gap-120">
+    {/* MESSAGE */}
+    <button
+      className="px-5 py-2 rounded-full
     bg-gradient-to-r from-yellow-400/15 to-orange-400/15
     border border-yellow-400/30
     text-white-300
     hover:from-yellow-400/25 hover:to-orange-400/25
     hover:text-yellow-200
     transition"
-    onClick={() => alert('Message coming soon!')}
-  >
-    Message
-  </button>
+      onClick={() => navigate(`/chat/${userId}`)}
 
-  {/* REPORT */}
-  <button
-    className="px-5 py-2
+    >
+      Message
+    </button>
+
+    {/* REPORT */}
+    <button
+      className="px-5 py-2
     bg-gradient-to-r from-red-500/10 to-red-600/10
     border border-red-500/30
     text-white-500
     hover:from-red-500/20 hover:to-red-600/20
     hover:text-red-300
     transition"
-    onClick={() => alert('Report user')}
-  >
-    Report
-  </button>
-</div>
+      onClick={() => alert("Report user")}
+    >
+      Report
+    </button>
+    
+    
+  
+
+  </div>
+)}
+
 
 
           </>

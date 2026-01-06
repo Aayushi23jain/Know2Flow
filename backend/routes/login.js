@@ -35,7 +35,7 @@ router.post("/", async (req, res) => {
         }),
       }
     );
-
+    
     const data = await response.json();
     console.error("Firebase REST status:", response.status, "body:", data);
 
@@ -65,11 +65,13 @@ router.post("/", async (req, res) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const userId = decodedToken.uid;
 
+
     // Step 3: Create a session cookie from idToken
-    const expiresIn = 5 * 60 * 60 * 1000; // 5 hours
+    const expiresIn = 5 * 24 * 60 * 60 * 1000; // 5 days
     const sessionCookie = await admin
       .auth()
       .createSessionCookie(idToken, { expiresIn });
+
 
     // Step 4: Set session cookie in response
     const options = {
@@ -77,9 +79,14 @@ router.post("/", async (req, res) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax", // was 'strict' — change to 'lax' so browser will send cookie for fetches
+      encode: String,
     };
 
-    res.cookie("session", sessionCookie, options);
+    res.cookie("session", sessionCookie, {
+  ...options,
+  encode: String, // ✅ PREVENT URL ENCODING
+});
+
     try {
       const userRef = db.collection("users").doc(userId);
       const snap = await userRef.get();
