@@ -52,6 +52,24 @@ export default function Profile() {
 
   const isOwner = meUid && meUid === userId;
 
+  const feedbacks = [
+    {
+      reviewer: "Alice",
+      rating: 5,
+      text: "Great mentor! Helped me understand complex topics easily.",
+    },
+    {
+      reviewer: "Bob",
+      rating: 4,
+      text: "Very supportive and patient. Highly recommend!",
+    },
+    {
+      reviewer: "Charlie",
+      rating: 4,
+      text: "Good teaching skills, but could be more responsive.",
+    },
+  ];
+
   const onSave = async () => {
     setSaving(true);
     try {
@@ -144,16 +162,18 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
           </div>
 
           <div className="flex items-center gap-1 ml-4">
-  {[1, 2, 3, 4, 5].map((star) => (
-    <span
-      key={star}
-      className={`text-2xl ${star <= 4 ? "text-yellow-400" : "text-gray-500"}`}
-      title={`${4} out of 5 stars`}
-    >
-      ★
-    </span>
-  ))}
-</div>
+            {[1, 2, 3, 4, 5].map((star) => (
+              <span
+                key={star}
+                className={`text-2xl ${
+                  star <= 4 ? "text-yellow-400" : "text-gray-500"
+                }`}
+                title={`${4} out of 5 stars`}
+              >
+                ★
+              </span>
+            ))}
+          </div>
 
           {isOwner && (
             <button
@@ -198,6 +218,50 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
                 ))}
               </div>
             </div>
+
+            <div className="mt-8">
+              <h3 className="font-semibold text-gray-300 mb-3">
+                Feedback Received
+              </h3>
+              <div className="space-y-4">
+                {feedbacks.slice(0, 3).map((fb, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <div className="font-semibold text-yellow-300">
+                        {fb.reviewer}
+                      </div>
+                      <div className="text-gray-200 mt-1">{fb.text}</div>
+                    </div>
+                    <div className="flex items-center gap-1 mt-2 sm:mt-0">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span
+                          key={star}
+                          className={`text-lg ${
+                            star <= fb.rating
+                              ? "text-yellow-400"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-end mt-2">
+                  <span
+                    className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold transition"
+                    onClick={() => alert("View more feedbacks coming soon!")}
+                  >
+                    View More
+                  </span>
+                </div>
+              </div>
+            </div>
+
             <div className="mt-8 flex justify-between items-center">
               <div className="flex gap-4">
                 {/* MESSAGE */}
