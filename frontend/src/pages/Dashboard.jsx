@@ -39,6 +39,24 @@ export default function Dashboard() {
 
   const isOwner = meUid && meUid === userId;
 
+  const feedbacks = [
+    {
+      reviewer: "Alice",
+      rating: 5,
+      text: "Great mentor! Helped me understand complex topics easily.",
+    },
+    {
+      reviewer: "Bob",
+      rating: 4,
+      text: "Very supportive and patient. Highly recommend!",
+    },
+    {
+      reviewer: "Charlie",
+      rating: 4,
+      text: "Good teaching skills, but could be more responsive.",
+    },
+  ];
+
   return (
 
 <div className="min-h-screen relative overflow-hidden text-white
@@ -68,7 +86,7 @@ backdrop-blur-md border-b border-white/5">
       <nav className="hidden md:flex gap-6 text-sm text-gray-300">
         
         <a href="/challenge" className="hover:text-white">Challenge</a>
-        <a href="/feedback" className="hover:text-white">Feedback</a>
+        <a href="/summary" className="hover:text-white">Summary</a>
         <a href="/leaderboard" className="hover:text-white">LeaderBoard</a>
       </nav>
 
@@ -122,6 +140,17 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
                   <div className="text-lg font-semibold">{user.name || "Guest"}</div>
                   <div className="text-sm text-gray-400">{user.email || ""}</div>
                   <div className="text-xs text-gray-400 mt-1">Tokens: <span className="text-yellow-400">{user.tokens ?? 0}</span></div>
+                  <div className="flex items-center gap-1 mt-1">
+    {[1, 2, 3, 4, 5].map((star) => (
+      <span
+        key={star}
+        className={`text-xl ${star <= 4 ? "text-yellow-400" : "text-gray-500"}`}
+        title="4 out of 5 stars"
+      >
+        ★
+      </span>
+    ))}
+  </div>
                 </div>
               </div>
 
@@ -142,6 +171,49 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
                   ))}
                 </div>
               </div>
+
+              <div className="mt-8">
+              <h3 className="font-semibold text-gray-300 mb-3">
+                Feedback Received
+              </h3>
+              <div className="space-y-4">
+                {feedbacks.slice(0, 3).map((fb, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <div className="font-semibold text-yellow-300">
+                        {fb.reviewer}
+                      </div>
+                      <div className="text-gray-200 mt-1">{fb.text}</div>
+                    </div>
+                    <div className="flex items-center gap-1 mt-2 sm:mt-0">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span
+                          key={star}
+                          className={`text-lg ${
+                            star <= fb.rating
+                              ? "text-yellow-400"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex justify-end mt-2">
+                  <span
+                    className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold transition"
+                    onClick={() => alert("View more feedbacks coming soon!")}
+                  >
+                    View More
+                  </span>
+                </div>
+              </div>
+            </div>
 
               <div className="flex gap-3 flex-col sm:flex-row">
                 {isOwner && (
@@ -214,6 +286,5 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
     </div>
   );
 }
-
 
 

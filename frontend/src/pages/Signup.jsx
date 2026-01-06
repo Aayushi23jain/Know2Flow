@@ -3,7 +3,6 @@ import { auth } from "../firebase";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
-  signOut,
 } from "firebase/auth";
 
 
@@ -21,6 +20,8 @@ export default function Signup() {
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [verificationUser, setVerificationUser] = useState(null);
+
 
 
   const handleChange = (e) => {
@@ -73,8 +74,8 @@ console.log("After sendEmailVerification");
       return;
     }
 
-    // 4️⃣ IMPORTANT: Log out user until email is verified
-    await signOut(auth);
+    // Save user for resend
+setVerificationUser(user);
 
     // 5️⃣ Show verification message
     setMessage(
@@ -219,6 +220,31 @@ console.log("After sendEmailVerification");
             {message}
           </p>
         )}
+
+        {verificationUser && (
+  <div className="text-center mt-2">
+    <p className="text-sm text-gray-600">
+      Didn’t receive the email?
+    </p>
+    <button
+      onClick={async () => {
+        try {
+          await sendEmailVerification(verificationUser, {
+            url: "http://localhost:5173/login",
+          });
+          setMessage("✅ Verification email resent. Please check your inbox.");
+        } catch (err) {
+          console.log(err);
+          setMessage("❌ Failed to resend verification email.");
+        }
+      }}
+      className="text-indigo-500 font-bold hover:underline mt-1"
+    >
+      Resend verification email
+    </button>
+  </div>
+)}
+
 
         <p className="text-center text-gray-600 mt-6">
           Already have an account?{" "}
