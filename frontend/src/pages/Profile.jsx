@@ -54,6 +54,9 @@ const [authLoading, setAuthLoading] = useState(true);
 
   const isOwner = !authLoading && meUid && meUid === userId;
 
+  
+  
+
   const feedbacks = [
     {
       reviewer: "Alice",
@@ -263,7 +266,10 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
                 </div>
               </div>
             </div>
+
 {!authLoading && !isOwner && (
+
+
             <div className="mt-8 flex justify-between items-center">
               <div className="flex gap-4">
                 {/* MESSAGE */}
