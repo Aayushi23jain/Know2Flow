@@ -6,7 +6,7 @@ export default function Leaderboard() {
   const { userId } = useParams(); 
   const navigate = useNavigate();
 
-  // Mock Data
+  // Static Data
   const users = [
     { id: "101", name: "Sarah Connor", points: 2450 },
     { id: "102", name: "John Doe", points: 2100 },
@@ -26,14 +26,15 @@ export default function Leaderboard() {
       <div className="absolute top-[-120px] left-[-120px] w-[420px] h-[420px] bg-orange-400/10 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-120px] right-[-120px] w-[420px] h-[420px] bg-yellow-400/10 rounded-full blur-[140px]" />
 
-      <div className="p-6">
-        <button 
-            onClick={() => navigate(-1)} 
-            className="text-gray-400 hover:text-white transition flex items-center gap-2"
-        >
-            ← Back to Dashboard
-        </button>
-      </div>
+      <div className="p-6 relative z-10">
+  <button
+    onClick={() => navigate(`/dashboard/${userId}`)}
+    className="text-gray-400 hover:text-white transition flex items-center gap-2"
+  >
+    ← Back
+  </button>
+</div>
+
 
       <main className="max-w-2xl mx-auto px-4 pb-12">
         <div className="text-center mb-10">

@@ -52,7 +52,11 @@ const [authLoading, setAuthLoading] = useState(true);
       .finally(() => setAuthLoading(false)); 
   }, []);
 
-  const isOwner = !authLoading && meUid && meUid === userId;
+const isOwner =
+  !authLoading &&
+  meUid &&
+  user &&
+  user._id === meUid;
 
   
   
@@ -180,17 +184,13 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
             ))}
           </div>
 
-          {isOwner && (
-            <button
-              onClick={() => setEditMode((v) => !v)}
-              className="bg-gradient-to-r from-yellow-400 to-orange-400
-              text-black px-4 py-2 rounded-full font-semibold
-              shadow-[0_15px_40px_rgba(250,204,21,0.45)]
-              hover:scale-105 transition"
-            >
-              {editMode ? "Cancel" : "Edit Profile"}
-            </button>
-          )}
+          {!authLoading && isOwner && (
+  <button onClick={() => setEditMode(v => !v)}>
+    {editMode ? "Cancel" : "Edit Profile"}
+  </button>
+)}
+
+
         </div>
 
         {/* CONTENT */}

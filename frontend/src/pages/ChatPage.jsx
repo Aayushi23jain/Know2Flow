@@ -48,12 +48,12 @@ export default function ChatPage() {
 
     socketRef.current = io("http://localhost:5000", { withCredentials: true });
 
-    socketRef.current.on("receiveMessage", msg => {
-      setMessages(prev => {
-        if (prev.some(m => m.createdAt?.seconds === msg.createdAt?.seconds && m.text === msg.text)) return prev;
-        return [...prev, msg];
-      });
-    });
+    // socketRef.current.on("receiveMessage", msg => {
+    //   setMessages(prev => {
+    //     if (prev.some(m => m.createdAt?.seconds === msg.createdAt?.seconds && m.text === msg.text)) return prev;
+    //     return [...prev, msg];
+    //   });
+    // });
 
     return () => {
       socketRef.current.disconnect();
@@ -80,28 +80,39 @@ export default function ChatPage() {
   }, [meUid, userId]);
 
   /* ================= SEND MESSAGE ================= */
-  const sendMessage = async () => {
-    if (!text.trim()) return;
+  const sendMessage = () => {
+  if (!text.trim()) return;
 
-    const chatId = [meUid, userId].sort().join("_");
+  socketRef.current.emit("sendMessage", {
+    receiverId: userId,
+    text: text.trim(),
+  });
 
-    const messageObj = {
-      senderId: meUid,
-      receiverId: userId,
-      text: text.trim(),
-      createdAt: serverTimestamp(),
-    };
+  setText("");
+};
 
-    // 🔹 Send to Firebase
-    await addDoc(collection(db, "chats", chatId, "messages"), messageObj);
+  // const sendMessage = async () => {
+  //   if (!text.trim()) return;
 
-    // 🔹 Emit to Socket.IO
-    if (socketRef.current) {
-      socketRef.current.emit("sendMessage", messageObj);
-    }
+  //   // const chatId = [meUid, userId].sort().join("_");
 
-    setText("");
-  };
+  //   const messageObj = {
+  //     senderId: meUid,
+  //     receiverId: userId,
+  //     // text: text.trim(),
+  //     // createdAt: serverTimestamp(),
+  //   };
+
+  //   // 🔹 Send to Firebase
+  //   // await addDoc(collection(db, "chats", chatId, "messages"), messageObj);
+
+  //   // 🔹 Emit to Socket.IO
+  //   if (socketRef.current) {
+  //     socketRef.current.emit("sendMessage", messageObj);
+  //   }
+
+  //   setText("");
+  // };
 
   /* ================= CLEAR CHAT ================= */
   const clearChat = async () => {
@@ -137,12 +148,12 @@ export default function ChatPage() {
           <span className="ml-4 font-semibold">{user?.name || "Chat"}</span>
         </div>
 
-        <button
+        {/* <button
           onClick={clearChat}
           className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-500"
         >
           Clear Chat
-        </button>
+        </button> */}
       </div>
 
       {/* MESSAGES */}
