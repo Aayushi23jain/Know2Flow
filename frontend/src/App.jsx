@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Profile from "./pages/Profile";
 import ChatPage from "./pages/ChatPage";
 import Feedback from "./pages/Feedback";
+import Challenge from "./pages/Challenge";
 
 // 1. IMPORT THE NEW PAGE
 import Leaderboard from "./pages/Leaderboard"; 
@@ -25,7 +26,7 @@ function App() {
 
       {/* 2. ADD THE ROUTE HERE */}
       <Route path="/leaderboard/:userId" element={<Leaderboard />} />
-
+      <Route path="/challenge" element={<Challenge />} />
     </Routes>
   );
 }

@@ -1,12 +1,13 @@
 import React, { useState } from "react";
 import { auth } from "../firebase";
+import { useNavigate } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
 } from "firebase/auth";
 
-
 export default function Signup() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -22,8 +23,6 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [verificationUser, setVerificationUser] = useState(null);
 
-
-
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -34,226 +33,240 @@ export default function Signup() {
     setLoading(true);
 
     try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
+      const user = userCredential.user;
 
-      // 1️⃣ Create user in Firebase Auth (client side)
-    const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      formData.email,
-      formData.password
-    );
+      await sendEmailVerification(user, {
+        url: "http://localhost:5173/login",
+      });
 
-    const user = userCredential.user;
+      const response = await fetch("http://localhost:5000/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          ...formData,
+          teachSkills: formData.teachSkills.split(",").map((s) => s.trim()),
+          learnSkills: formData.learnSkills.split(",").map((s) => s.trim()),
+        }),
+      });
 
-    console.log("Before sendEmailVerification");
+      const data = await response.json();
 
-    // 2️⃣ Send verification email
-    await sendEmailVerification(user, {
-  url: "http://localhost:5173/login",
-});
+      if (!response.ok) {
+        setMessage(data.details || data.error || "Signup failed ❌");
+        setLoading(false);
+        return;
+      }
 
-console.log("After sendEmailVerification");
-
-
-      // 3️⃣ Call backend to save user data (same as before)
-    const response = await fetch("http://localhost:5000/signup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        ...formData,
-        teachSkills: formData.teachSkills.split(",").map((s) => s.trim()),
-        learnSkills: formData.learnSkills.split(",").map((s) => s.trim()),
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      setMessage(data.details || data.error || "Signup failed ❌");
+      setVerificationUser(user);
+      setMessage("📧 Verification link sent! Please check your inbox.");
       setLoading(false);
-      return;
-    }
-
-    // Save user for resend
-setVerificationUser(user);
-
-    // 5️⃣ Show verification message
-    setMessage(
-      "📧 Verification link sent to your email. Please verify your email and then login."
-    );
-
-    setLoading(false);
     } catch (error) {
       console.error("Signup error:", error);
-      setMessage("Server error ❌");
+      setMessage("Account creation failed. Please try again. ❌");
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-200 via-purple-100 to-pink-200">
-      <div className="bg-orange-50 shadow-lg rounded-2xl p-10 w-full max-w-2xl border border-gray-200">
-        <h2 className="text-3xl font-bold text-gray-800 text-center mb-6">
-          Create Your Account
-        </h2>
+    <div className="min-h-screen relative overflow-hidden text-white flex items-center justify-center py-12 px-4
+      bg-[radial-gradient(ellipse_at_top_left,_rgba(255,186,73,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(255,215,0,0.05),_transparent_55%),linear-gradient(135deg,#0b0b10,#111421,#141a2b,#0a0c14)]">
+      
+      {/* Ambient background glow */}
+      <div className="absolute top-[-120px] left-[-120px] w-[420px] h-[420px] bg-orange-400/10 rounded-full blur-[140px]" />
+      <div className="absolute bottom-[-120px] right-[-120px] w-[420px] h-[420px] bg-yellow-400/10 rounded-full blur-[140px]" />
 
-        <form
-          onSubmit={handleSubmit}
-          className="grid grid-cols-1 md:grid-cols-2 gap-4"
-        >
-          <input
-            type="text"
-            name="name"
-            placeholder="Full Name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-          <input
-            type="email"
-            name="email"
-            placeholder="Email Address"
-            value={formData.email}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+      <div className="relative z-10 w-full max-w-2xl bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10] 
+        border border-white/10 rounded-2xl p-8 md:p-12 shadow-[0_40px_90px_rgba(0,0,0,0.95)] backdrop-blur-sm">
+        
+        <div className="text-center mb-10">
+          <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white">
+            Join Know2Flow
+          </h2>
+          <p className="text-gray-400 mt-2 italic text-sm">Swap Skills, No Bills</p>
+        </div>
 
-          <div className="relative">
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Name */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">FULL NAME</label>
             <input
-              type={showPassword ? "text" : "password"} // 🔑 toggle type
-              name="password"
-              placeholder="Password"
-              value={formData.password}
+              type="text"
+              name="name"
+              placeholder="John Doe"
+              value={formData.name}
               onChange={handleChange}
               required
-              className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 w-full"
+              className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition"
             />
-            <span
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 cursor-pointer text-gray-500"
-            >
-              {showPassword ? "🙈" : "👁️"} {/* eye icon */}
-            </span>
           </div>
 
-          <input
-            type="text"
-            name="language"
-            placeholder="Language (e.g. English)"
-            value={formData.language}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
-          <input
-            type="text"
-            name="teachSkills"
-            placeholder="Skills you can teach (comma separated)"
-            value={formData.teachSkills}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 col-span-2"
-          />
-          <input
-            type="text"
-            name="learnSkills"
-            placeholder="Skills you want to learn (comma separated)"
-            value={formData.learnSkills}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 col-span-2"
-          />
+          {/* Email */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">EMAIL ADDRESS</label>
+            <input
+              type="email"
+              name="email"
+              placeholder="john@example.com"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition"
+            />
+          </div>
 
-          <select
-            name="experienceLevel"
-            value={formData.experienceLevel}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          >
-            <option value="">Select Experience</option>
-            <option value="Beginner">Beginner</option>
-            <option value="Intermediate">Intermediate</option>
-            <option value="Advanced">Advanced</option>
-          </select>
+          {/* Password */}
+          <div className="flex flex-col gap-1 relative">
+            <label className="text-xs font-semibold text-gray-400 ml-1">PASSWORD</label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={handleChange}
+                required
+                className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition w-full"
+              />
+              <span
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer text-gray-400 hover:text-white"
+              >
+                {showPassword ? "🙈" : "👁️"}
+              </span>
+            </div>
+          </div>
 
-          <input
-            type="text"
-            name="country"
-            placeholder="Country"
-            value={formData.country}
-            onChange={handleChange}
-            required
-            className="p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-          />
+          {/* Language */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">PRIMARY LANGUAGE</label>
+            <input
+              type="text"
+              name="language"
+              placeholder="e.g. English"
+              value={formData.language}
+              onChange={handleChange}
+              required
+              className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition"
+            />
+          </div>
 
-          {/* <button
-            type="submit"
-            className="col-span-2 w-full bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-md transition hover:bg-indigo-600"
-          >
-            Sign Up
-          </button> */}
+          {/* Skills to Teach */}
+          <div className="md:col-span-2 flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">SKILLS YOU CAN TEACH</label>
+            <input
+              type="text"
+              name="teachSkills"
+              placeholder="React, Dancing, Cooking (comma separated)"
+              value={formData.teachSkills}
+              onChange={handleChange}
+              required
+              className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition"
+            />
+          </div>
+
+          {/* Skills to Learn */}
+          <div className="md:col-span-2 flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">SKILLS YOU WANT TO LEARN</label>
+            <input
+              type="text"
+              name="learnSkills"
+              placeholder="Python, UI Design, Yoga (comma separated)"
+              value={formData.learnSkills}
+              onChange={handleChange}
+              required
+              className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition"
+            />
+          </div>
+
+          {/* Experience Level */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">EXPERIENCE</label>
+            <select
+              name="experienceLevel"
+              value={formData.experienceLevel}
+              onChange={handleChange}
+              required
+              className="p-3 bg-[#1a1d26] border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition text-gray-300"
+            >
+              <option value="">Select Level</option>
+              <option value="Beginner">Beginner</option>
+              <option value="Intermediate">Intermediate</option>
+              <option value="Advanced">Advanced</option>
+            </select>
+          </div>
+
+          {/* Country */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-400 ml-1">COUNTRY</label>
+            <input
+              type="text"
+              name="country"
+              placeholder="India"
+              value={formData.country}
+              onChange={handleChange}
+              required
+              className="p-3 bg-white/5 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400/50 transition"
+            />
+          </div>
 
           <button
-  type="submit"
-  disabled={loading}
-  className={`col-span-2 w-full flex items-center justify-center gap-2 
-    bg-indigo-500 text-white font-bold py-3 rounded-lg shadow-md transition
-    ${loading ? "opacity-70 cursor-not-allowed" : "hover:bg-indigo-600"}`}
->
-  {loading ? (
-    <>
-      <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-      Creating account...
-    </>
-  ) : (
-    "Sign Up"
-  )}
-</button>
-
+            type="submit"
+            disabled={loading}
+            className={`md:col-span-2 mt-4 flex items-center justify-center gap-2 
+              bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold py-4 rounded-xl shadow-lg transition
+              ${loading ? "opacity-70 cursor-not-allowed" : "hover:scale-[1.02] hover:shadow-orange-500/20"}`}
+          >
+            {loading ? (
+              <>
+                <span className="animate-spin h-5 w-5 border-2 border-black border-t-transparent rounded-full"></span>
+                PREPARING YOUR FLOW...
+              </>
+            ) : (
+              "CREATE ACCOUNT"
+            )}
+          </button>
         </form>
 
         {message && (
-          <p className="text-center text-gray-700 mt-6 font-semibold">
+          <div className="mt-6 p-4 rounded-xl bg-orange-400/10 border border-orange-400/20 text-center text-sm font-medium text-orange-200">
             {message}
-          </p>
+          </div>
         )}
 
         {verificationUser && (
-  <div className="text-center mt-2">
-    <p className="text-sm text-gray-600">
-      Didn’t receive the email?
-    </p>
-    <button
-      onClick={async () => {
-        try {
-          await sendEmailVerification(verificationUser, {
-            url: "http://localhost:5173/login",
-          });
-          setMessage("✅ Verification email resent. Please check your inbox.");
-        } catch (err) {
-          console.log(err);
-          setMessage("❌ Failed to resend verification email.");
-        }
-      }}
-      className="text-indigo-500 font-bold hover:underline mt-1"
-    >
-      Resend verification email
-    </button>
-  </div>
-)}
+          <div className="text-center mt-4">
+            <button
+              onClick={async () => {
+                try {
+                  await sendEmailVerification(verificationUser, {
+                    url: "http://localhost:5173/login",
+                  });
+                  setMessage("✅ Email resent. Check your spam folder too!");
+                } catch (err) {
+                  setMessage("❌ Failed to resend email.");
+                }
+              }}
+              className="text-orange-400 text-sm font-bold hover:underline"
+            >
+              Resend verification email
+            </button>
+          </div>
+        )}
 
-
-        <p className="text-center text-gray-600 mt-6">
-          Already have an account?{" "}
-          <a
-            href="/login"
-            className="text-indigo-500 font-bold hover:underline"
+        <p className="text-center text-gray-500 mt-8 text-sm">
+          Already a member?{" "}
+          <button
+            onClick={() => navigate("/login")}
+            className="text-white font-bold hover:text-orange-400 transition"
           >
-            Login
-          </a>
+            Login here
+          </button>
         </p>
       </div>
     </div>

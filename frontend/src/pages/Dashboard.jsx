@@ -86,8 +86,14 @@ backdrop-blur-md border-b border-white/5">
     <div className="flex items-center gap-6">
       <nav className="hidden md:flex gap-6 text-sm text-gray-300">
         
-        <a href="/challenge" className="hover:text-white">Challenge</a>
-        <a href="/summary" className="hover:text-white">Summary</a>
+      <button
+        onClick={() => navigate("/challenge")}
+        className="hover:text-white transition-colors"
+      >
+        Challenge
+      </button>
+
+      <a href="/summary" className="hover:text-white">Summary</a>
       {/*  <a href="/leaderboard" className="hover:text-white">LeaderBoard</a> */}
         <button 
            onClick={() => navigate(`/leaderboard/${userId}`)} 
