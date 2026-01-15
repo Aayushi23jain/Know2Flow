@@ -43,6 +43,9 @@ export default function Signup() {
       await sendEmailVerification(user, {
         url: "http://localhost:5173/login",
       });
+      setVerificationUser(user);
+      setMessage("📧 Verification link sent! Please check your inbox.");
+      setLoading(false);
 
       const response = await fetch("http://localhost:5000/signup", {
         method: "POST",
@@ -63,13 +66,23 @@ export default function Signup() {
         return;
       }
 
-      setVerificationUser(user);
-      setMessage("📧 Verification link sent! Please check your inbox.");
-      setLoading(false);
+      
     } catch (error) {
       console.error("Signup error:", error);
-      setMessage("Account creation failed. Please try again. ❌");
-      setLoading(false);
+      let msg = "Something went wrong ❌";
+
+  if (error.code === "auth/weak-password") {
+    msg = "Password must be at least 6 characters long.";
+  } else if (error.code === "auth/email-already-in-use") {
+    msg = "This email is already registered.";
+  } else if (error.code === "auth/invalid-email") {
+    msg = "Please enter a valid email address.";
+  } else if (error.message) {
+    msg = error.message;
+  }
+
+  setMessage(msg);
+  setLoading(false);
     }
   };
 

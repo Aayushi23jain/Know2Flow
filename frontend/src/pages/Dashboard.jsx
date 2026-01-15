@@ -261,7 +261,7 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
               <div className="flex gap-3 flex-col sm:flex-row">
                 {isOwner && (
                   <button
-                    onClick={() => navigate(`/profile/${userId}`)}
+                    onClick={() => navigate(`/edit/${userId}`)}
                     className="w-full sm:w-auto bg-yellow-400 text-black py-2 px-4 rounded-lg font-semibold"
                   >
                     Edit Profile

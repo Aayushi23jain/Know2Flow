@@ -8,11 +8,9 @@ import Profile from "./pages/Profile";
 import ChatPage from "./pages/ChatPage";
 import Feedback from "./pages/Feedback";
 import Challenge from "./pages/Challenge";
-
 import VideoCall from "./pages/VideoCall";
-
-// 1. IMPORT THE NEW PAGE
 import Leaderboard from "./pages/Leaderboard"; 
+import Edit from "./pages/Edit";
 
 function App() {
   return (
@@ -25,10 +23,8 @@ function App() {
       <Route path="/profile/:userId" element={<Profile />} />
       <Route path="/chat/:userId" element={<ChatPage />} />
       <Route path="/feedback/:userId" element={<Feedback />} />
-
+      <Route path="/edit/:userId" element={<Edit />} />
       <Route path="/video-call/:userId" element={<VideoCall />} />
-
-      {/* 2. ADD THE ROUTE HERE */}
       <Route path="/leaderboard/:userId" element={<Leaderboard />} />
       <Route path="/challenge" element={<Challenge />} />
     </Routes>
