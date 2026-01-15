@@ -78,9 +78,16 @@ backdrop-blur-md border-b border-white/5">
   <div className="flex items-center justify-between px-4 md:px-8 max-w-full">
     {/* left: logo + name */}
     <div className="flex items-center gap-3">
-      
-      <div className="text-2xl font-bold text-orange-400">Know2Flow</div>
-    </div>
+  <img
+    src="/logo.png"
+    alt="Know2Flow Logo"
+    className="w-8 h-8 object-contain"
+  />
+  <div className="text-2xl font-bold text-orange-400">
+    Know2Flow
+  </div>
+</div>
+
 
     {/* right: nav + badges + compact profile */}
     <div className="flex items-center gap-6">
@@ -123,12 +130,22 @@ backdrop-blur-md border-b border-white/5">
       {/* Main single-column content */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Title */}
-        <div className="text-center">
-          <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white">
-            KNOW2FLOW
-          </h1>
-           <p className="mt-6 text-center text-gray-300 italic">Swap Skills, No Bills</p>
-        </div>
+        <div className="text-center flex flex-col items-center">
+  <img
+    src="/logo.png"
+    alt="Know2Flow Logo"
+    className="w-24 h-24 mb-4 object-contain"
+  />
+
+  <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white">
+    KNOW2FLOW
+  </h1>
+
+  <p className="mt-6 text-center text-gray-300 italic">
+    Swap Skills, No Bills
+  </p>
+</div>
+
 
         {/* Full-width profile card */}
         <div className="mt-10 mb-10 relative rounded-2xl p-6
@@ -165,6 +182,17 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
         ★
       </span>
     ))}
+
+
+    {/* RIGHT: medal */}
+  {/* Achievement Badge – top right */}
+<img
+  src="/medal.png"
+  alt="Achievement Badge"
+  title="Achievement Badge"
+  className="absolute top-10 right-6 w-20 h-20 object-contain opacity-95"
+/>
+
   </div>
                 </div>
               </div>
@@ -261,6 +289,9 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
         
 
         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-6">
+
+        
+
   
   {/* Match Skills */}
   <button
@@ -279,6 +310,8 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
     <span className="absolute inset-0 rounded-full
     bg-yellow-400/30 blur-xl opacity-0 group-hover:opacity-100 transition" />
   </button>
+
+    
 
   {/* Chat */}
   <button
@@ -301,5 +334,4 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
     </div>
   );
 }
-
 

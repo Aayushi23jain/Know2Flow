@@ -63,7 +63,8 @@ export default function Matches() {
             {/* subtle inner glow */}
             <div className="absolute inset-0 rounded-2xl
             bg-gradient-to-br from-yellow-400/5 via-transparent to-orange-400/5 pointer-events-none" />
-
+          
+         
             <h2 className="relative text-xl font-semibold">
               {m.name}
             </h2>
@@ -87,7 +88,18 @@ export default function Matches() {
               >
                 View Profile
               </button>
-
+              <button
+        onClick={() => navigate(`/video-call/${userId}`)}
+        className="relative group bg-gradient-to-br from-[#1a1d2b] to-[#0b0c10]
+    text-gray-100 px-6 py-3 rounded-full
+    border border-white/10
+    shadow-[0_15px_40px_rgba(0,0,0,0.9)]
+    hover:bg-[#1f2233] hover:scale-105 transition-all duration-300"
+>
+  <span className="relative z-10"> Video Call</span>
+  <span className="absolute inset-0 rounded-full
+    bg-white/5 blur-lg opacity-0 group-hover:opacity-100 transition" />
+</button>
               
             </div>
           </div>

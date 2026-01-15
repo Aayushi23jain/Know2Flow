@@ -249,6 +249,7 @@ export default function Signup() {
                   });
                   setMessage("✅ Email resent. Check your spam folder too!");
                 } catch (err) {
+                  console.error(err);
                   setMessage("❌ Failed to resend email.");
                 }
               }}

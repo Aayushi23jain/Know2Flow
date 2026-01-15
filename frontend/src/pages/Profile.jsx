@@ -546,6 +546,15 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
             ))}
           </div>
 
+          {/* Achievement Badge */}
+<img
+  src="/medal.png"
+  alt="Achievement Badge"
+  title="Achievement Badge"
+  className="absolute top-12 right-8 w-24 h-24 object-contain opacity-95"
+/>
+
+
           {!authLoading && isOwner && (
   <button
     onClick={() => setEditMode(v => !v)}
