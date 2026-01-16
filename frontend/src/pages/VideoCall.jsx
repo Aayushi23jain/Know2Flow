@@ -152,14 +152,7 @@ export default function VideoCall() {
           </svg>
         </button>
 
-        {/* MORE
-        <button className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center">
-          <svg width="6" height="22" viewBox="0 0 6 22" fill="white">
-            <circle cx="3" cy="3" r="3"/>
-            <circle cx="3" cy="11" r="3"/>
-            <circle cx="3" cy="19" r="3"/>
-          </svg>
-        </button> */}
+       
       </div>
     </div>
   );

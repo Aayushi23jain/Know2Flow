@@ -44,8 +44,10 @@ async function ensureEmbeddingsForUser(userId, userData) {
   let teachVec = records[teachId]?.values || null;
   let learnVec = records[learnId]?.values || null;
 
+  const forceRegen = userData.embeddingsStatus === "pending";
+
   try {
-    if (!teachVec && Array.isArray(userData.teachSkills) && userData.teachSkills.length) {
+    if ((forceRegen || !teachVec) && Array.isArray(userData.teachSkills) && userData.teachSkills.length) {
       const teachText = userData.teachSkills.join(", ");
       const emb = await generateEmbedding(teachText);
       if (emb?.length) {
@@ -62,7 +64,7 @@ async function ensureEmbeddingsForUser(userId, userData) {
       }
     }
 
-    if (!learnVec && Array.isArray(userData.learnSkills) && userData.learnSkills.length) {
+    if ((forceRegen || !learnVec) && Array.isArray(userData.learnSkills) && userData.learnSkills.length) {
       const learnText = userData.learnSkills.join(", ");
       const emb = await generateEmbedding(learnText);
       if (emb?.length) {
@@ -77,6 +79,12 @@ async function ensureEmbeddingsForUser(userId, userData) {
           }
         }
       }
+    }
+    // ✅ If regeneration happened, mark embeddings as ready
+    if (forceRegen) {
+      await db.collection("users").doc(userId).update({
+        embeddingsStatus: "ready"
+      });
     }
   } catch (err) {
     console.warn("⚠️ Error generating/upserting embeddings for", userId, err.message || err);
@@ -147,11 +155,11 @@ router.post("/", async (req, res) => {
     c.learnSkills || []
   );
 
-  // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
-  if (learnIntersection === 0 && teachIntersection === 0) {
-    return null;
-  }
-
+  // // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
+  // if (learnIntersection === 0 && teachIntersection === 0) {
+  //   return null;
+  // }
+  const COSINE_THRESHOLD = 0.6;
   // 2️⃣ IF EMBEDDINGS AVAILABLE → USE THEM FOR SCORING
   if (useEmbeddings) {
     const teachVec = vectors[`${c.id}-teach`]?.values || null;
@@ -161,6 +169,10 @@ router.post("/", async (req, res) => {
       const learnScore = cosineSimilarity(userLearnEmbedding, teachVec);
       const teachScore = cosineSimilarity(userTeachEmbedding, learnVec);
       const finalScore = ((learnScore ?? 0) + (teachScore ?? 0)) / 2;
+
+      if (finalScore < COSINE_THRESHOLD) {
+      return null; // Eliminate weak matches
+    }
 
       return {
         userId: c.id,
@@ -212,4 +224,3 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
-

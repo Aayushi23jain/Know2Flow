@@ -1,5 +1,3 @@
-
-// ChatPage.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
@@ -9,11 +7,6 @@ import {
   query,
   orderBy,
   onSnapshot,
-  addDoc,
-  serverTimestamp,
-  getDocs,
-  deleteDoc,
-  doc
 } from "firebase/firestore";
 
 export default function ChatPage() {
@@ -48,12 +41,7 @@ export default function ChatPage() {
 
     socketRef.current = io("http://localhost:5000", { withCredentials: true });
 
-    // socketRef.current.on("receiveMessage", msg => {
-    //   setMessages(prev => {
-    //     if (prev.some(m => m.createdAt?.seconds === msg.createdAt?.seconds && m.text === msg.text)) return prev;
-    //     return [...prev, msg];
-    //   });
-    // });
+
 
     return () => {
       socketRef.current.disconnect();
@@ -91,47 +79,6 @@ export default function ChatPage() {
   setText("");
 };
 
-  // const sendMessage = async () => {
-  //   if (!text.trim()) return;
-
-  //   // const chatId = [meUid, userId].sort().join("_");
-
-  //   const messageObj = {
-  //     senderId: meUid,
-  //     receiverId: userId,
-  //     // text: text.trim(),
-  //     // createdAt: serverTimestamp(),
-  //   };
-
-  //   // 🔹 Send to Firebase
-  //   // await addDoc(collection(db, "chats", chatId, "messages"), messageObj);
-
-  //   // 🔹 Emit to Socket.IO
-  //   if (socketRef.current) {
-  //     socketRef.current.emit("sendMessage", messageObj);
-  //   }
-
-  //   setText("");
-  // };
-
-  /* ================= CLEAR CHAT ================= */
-  const clearChat = async () => {
-    if (!meUid || !userId) return;
-
-    const confirmClear = window.confirm("Are you sure you want to clear this chat?");
-    if (!confirmClear) return;
-
-    const chatId = [meUid, userId].sort().join("_");
-    const messagesRef = collection(db, "chats", chatId, "messages");
-    const snapshot = await getDocs(messagesRef);
-
-    const deletePromises = snapshot.docs.map(d =>
-      deleteDoc(doc(db, "chats", chatId, "messages", d.id))
-    );
-    await Promise.all(deletePromises);
-
-    setMessages([]);
-  };
 
   /* ================= AUTOSCROLL ================= */
   useEffect(() => {

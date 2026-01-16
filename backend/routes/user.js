@@ -5,11 +5,7 @@ import verifyCookie from "../middlewares/verifyCookie.js";
 
 const router = express.Router();
 
-/**
- * GET /user/me
- * Protected endpoint that returns the current authenticated user's profile.
- * Note: this route must be declared before the parameterized /:userId route.
- */
+
 router.get("/me", verifyCookie, async (req, res) => {
   try {
     const uid = req.user?.uid;
@@ -25,10 +21,7 @@ router.get("/me", verifyCookie, async (req, res) => {
   }
 });
 
-/**
- * GET /user/:userId
- * Public profile fetch
- */
+
 router.get("/:userId", async (req, res) => {
   try {
     const doc = await db.collection("users").doc(req.params.userId).get();
@@ -40,10 +33,7 @@ router.get("/:userId", async (req, res) => {
   }
 });
 
-/**
- * PUT /user/:userId
- * Protected — only the authenticated owner can update their profile
- */
+
 router.put("/:userId", verifyCookie, async (req, res) => {
   try {
     const uid = req.user?.uid;
@@ -63,8 +53,12 @@ router.put("/:userId", verifyCookie, async (req, res) => {
     }
 
     updates.updatedAt = new Date();
-    // mark embeddings for regeneration by background job / on-demand logic
-    updates.embeddingsStatus = "pending";
+    const skillsChanged =
+      "teachSkills" in updates || "learnSkills" in updates;
+
+    if (skillsChanged) {
+      updates.embeddingsStatus = "pending";
+    }
 
     await db.collection("users").doc(req.params.userId).update(updates);
 
