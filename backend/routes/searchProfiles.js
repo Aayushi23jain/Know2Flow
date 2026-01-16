@@ -155,11 +155,11 @@ router.post("/", async (req, res) => {
     c.learnSkills || []
   );
 
-  // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
-  if (learnIntersection === 0 && teachIntersection === 0) {
-    return null;
-  }
-
+  // // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
+  // if (learnIntersection === 0 && teachIntersection === 0) {
+  //   return null;
+  // }
+  const COSINE_THRESHOLD = 0.6;
   // 2️⃣ IF EMBEDDINGS AVAILABLE → USE THEM FOR SCORING
   if (useEmbeddings) {
     const teachVec = vectors[`${c.id}-teach`]?.values || null;
@@ -169,6 +169,10 @@ router.post("/", async (req, res) => {
       const learnScore = cosineSimilarity(userLearnEmbedding, teachVec);
       const teachScore = cosineSimilarity(userTeachEmbedding, learnVec);
       const finalScore = ((learnScore ?? 0) + (teachScore ?? 0)) / 2;
+
+      if (finalScore < COSINE_THRESHOLD) {
+      return null; // Eliminate weak matches
+    }
 
       return {
         userId: c.id,
@@ -220,4 +224,3 @@ router.post("/", async (req, res) => {
 });
 
 export default router;
-

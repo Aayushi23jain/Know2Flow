@@ -117,12 +117,7 @@ backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-1 text-red-400"><span>🔥</span><span className="text-white">{user?.streak ?? 0}</span></div>
       </div>
 
-      {/* compact right-side profile (desktop only) */}
-      {/* <div className="hidden md:flex items-center gap-3 pl-4 border-l border-gray-800">
-        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-400 to-pink-400 flex items-center justify-center text-black font-bold">
-          {user?.name ? user.name.charAt(0).toUpperCase() : "U"}
-        </div>
-      </div> */}
+     
     </div>
   </div>
 </header>
