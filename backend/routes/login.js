@@ -1,13 +1,15 @@
 import express from "express";
-import fetch from "node-fetch"; // if not installed: npm install node-fetch
+import fetch from "node-fetch";
 import { admin } from "../firebase.js";
 import { db } from "../firebase.js";
 const router = express.Router();
 function isSameDay(a, b) {
-    return a.getUTCFullYear() === b.getUTCFullYear() &&
+  return (
+    a.getUTCFullYear() === b.getUTCFullYear() &&
     a.getUTCMonth() === b.getUTCMonth() &&
-   a.getUTCDate() === b.getUTCDate();
- }
+    a.getUTCDate() === b.getUTCDate()
+  );
+}
 // POST /login
 router.post("/", async (req, res) => {
   const { email, password } = req.body;
@@ -35,7 +37,7 @@ router.post("/", async (req, res) => {
         }),
       }
     );
-    
+
     const data = await response.json();
     console.error("Firebase REST status:", response.status, "body:", data);
 
@@ -65,13 +67,11 @@ router.post("/", async (req, res) => {
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     const userId = decodedToken.uid;
 
-
     // Step 3: Create a session cookie from idToken
     const expiresIn = 5 * 24 * 60 * 60 * 1000; // 5 days
     const sessionCookie = await admin
       .auth()
       .createSessionCookie(idToken, { expiresIn });
-
 
     // Step 4: Set session cookie in response
     const options = {
@@ -83,22 +83,24 @@ router.post("/", async (req, res) => {
     };
 
     res.cookie("session", sessionCookie, {
-  ...options,
-  encode: String, // ✅ PREVENT URL ENCODING
-});
+      ...options,
+      encode: String, // ✅ PREVENT URL ENCODING
+    });
 
     try {
       const userRef = db.collection("users").doc(userId);
       const snap = await userRef.get();
       const now = new Date();
       let newStreak = 1;
-      let newStars = 1;
 
       if (snap.exists) {
         const data = snap.data();
-       const prev = data.lastLogin ? (data.lastLogin.toDate ? data.lastLogin.toDate() : new Date(data.lastLogin)) : null;
+        const prev = data.lastLogin
+          ? data.lastLogin.toDate
+            ? data.lastLogin.toDate()
+            : new Date(data.lastLogin)
+          : null;
         const prevStreak = data.streak || 0;
-        const prevStars = data.stars || 0;
 
         const today = now;
         const yesterday = new Date(now);
@@ -106,26 +108,26 @@ router.post("/", async (req, res) => {
 
         if (prev && isSameDay(prev, today)) {
           // already logged in today — don't change streak/stars
-         newStreak = prevStreak || 1;
-         newStars = prevStars || 0;
+          newStreak = prevStreak || 1;
         } else if (prev && isSameDay(prev, yesterday)) {
           // consecutive-day login
           newStreak = (prevStreak || 0) + 1;
-         newStars = (prevStars || 0) + 1;
         } else {
           // not consecutive -> reset streak, give star for today
           newStreak = 1;
-          newStars = (prevStars || 0) + 1;
         }
       } else {
         // no doc yet -> create minimal profile
-        await userRef.set({ createdAt: now, email: decodedToken.email || null, tokens: 1 });
+        await userRef.set({
+          createdAt: now,
+          email: decodedToken.email || null,
+          tokens: 1,
+        });
       }
 
       await userRef.update({
         lastLogin: admin.firestore.Timestamp.fromDate(now),
         streak: newStreak,
-        stars: newStars,
       });
     } catch (err) {
       console.warn("Failed to update login stats:", err.message || err);

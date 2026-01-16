@@ -44,8 +44,10 @@ async function ensureEmbeddingsForUser(userId, userData) {
   let teachVec = records[teachId]?.values || null;
   let learnVec = records[learnId]?.values || null;
 
+  const forceRegen = userData.embeddingsStatus === "pending";
+
   try {
-    if (!teachVec && Array.isArray(userData.teachSkills) && userData.teachSkills.length) {
+    if ((forceRegen || !teachVec) && Array.isArray(userData.teachSkills) && userData.teachSkills.length) {
       const teachText = userData.teachSkills.join(", ");
       const emb = await generateEmbedding(teachText);
       if (emb?.length) {
@@ -62,7 +64,7 @@ async function ensureEmbeddingsForUser(userId, userData) {
       }
     }
 
-    if (!learnVec && Array.isArray(userData.learnSkills) && userData.learnSkills.length) {
+    if ((forceRegen || !learnVec) && Array.isArray(userData.learnSkills) && userData.learnSkills.length) {
       const learnText = userData.learnSkills.join(", ");
       const emb = await generateEmbedding(learnText);
       if (emb?.length) {
@@ -77,6 +79,12 @@ async function ensureEmbeddingsForUser(userId, userData) {
           }
         }
       }
+    }
+    // ✅ If regeneration happened, mark embeddings as ready
+    if (forceRegen) {
+      await db.collection("users").doc(userId).update({
+        embeddingsStatus: "ready"
+      });
     }
   } catch (err) {
     console.warn("⚠️ Error generating/upserting embeddings for", userId, err.message || err);
