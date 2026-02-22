@@ -1,0 +1,125 @@
+import { useEffect, useState } from "react";
+import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "firebase/firestore";
+import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+
+export default function IncomingCallPopup() {
+  const [incomingCall, setIncomingCall] = useState(null);
+  const [callerName, setCallerName] = useState("Unknown");
+  const [callerPhoto, setCallerPhoto] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  const navigate = useNavigate();
+  const auth = getAuth();
+
+  // Track logged-in user
+  useEffect(() => {
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
+    });
+
+    return () => unsubscribeAuth();
+  }, [auth]);
+
+  // Listen for incoming calls
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const q = query(
+      collection(db, "calls"),
+      where("to", "==", currentUser.uid),
+      where("status", "==", "ringing"),
+      where("createdAt", ">", new Date(Date.now() - 60 * 1000))
+    );
+
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      if (snapshot.empty) {
+        setIncomingCall(null);
+        setCallerName("Unknown");
+        setCallerPhoto(null);
+        return;
+      }
+
+      const docSnap = snapshot.docs[0];
+      const callData = { id: docSnap.id, ...docSnap.data() };
+      setIncomingCall(callData);
+
+      const userSnap = await getDoc(doc(db, "users", callData.from));
+
+      if (userSnap.exists()) {
+        setCallerName(userSnap.data().name || "Unknown");
+        setCallerPhoto(userSnap.data().photoURL || null);
+      } else {
+        setCallerName("Unknown");
+        setCallerPhoto(null);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser]);
+
+  const acceptCall = async () => {
+    if (!incomingCall) return;
+
+    await updateDoc(doc(db, "calls", incomingCall.id), {
+      status: "accepted",
+    });
+
+    navigate(`/video-call/${incomingCall.channelName}/${incomingCall.id}`);
+    setIncomingCall(null);
+  };
+
+  const rejectCall = async () => {
+    if (!incomingCall) return;
+
+    await updateDoc(doc(db, "calls", incomingCall.id), {
+      status: "rejected",
+    });
+
+    setIncomingCall(null);
+  };
+
+  if (!incomingCall) return null;
+
+  return (
+    <div className="fixed bottom-6 right-6 bg-gray-900 p-6 rounded-xl text-white z-50 shadow-xl w-80">
+      <div className="flex items-center gap-3">
+        {callerPhoto ? (
+          <img
+            src={callerPhoto}
+            className="w-14 h-14 rounded-full object-cover"
+            alt="Caller"
+          />
+        ) : (
+          <div className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center">
+            👤
+          </div>
+        )}
+
+        <div>
+          <p className="text-lg font-semibold">{callerName}</p>
+          <p className="text-sm text-gray-400">
+            Incoming video call...
+          </p>
+        </div>
+      </div>
+
+      <div className="flex gap-4 mt-5">
+        <button
+          onClick={acceptCall}
+          className="bg-green-600 px-4 py-2 rounded hover:bg-green-700 transition w-full"
+        >
+          Accept
+        </button>
+
+        <button
+          onClick={rejectCall}
+          className="bg-red-600 px-4 py-2 rounded hover:bg-red-700 transition w-full"
+        >
+          Reject
+        </button>
+      </div>
+    </div>
+  );
+}

@@ -15,6 +15,7 @@ import userRoute from "./routes/user.js";
 import chatRoutes from "./routes/chat.js";
 import registerChatHandlers from "./sockets/chat.js";
 import socketAuth from "./sockets/socketAuth.js";
+import agoraTokenRoute from "./routes/agoraToken.js";
 const app = express();
 
 app.use(cors({
@@ -30,7 +31,7 @@ app.use("/login", loginRoute);
 app.use("/search-profiles", searchProfilesRoute);
 app.use("/user", userRoute);
 app.use("/chat", chatRoutes);
-
+app.use("/api/agora", agoraTokenRoute);
 // HTTP server
 const server = http.createServer(app);
 

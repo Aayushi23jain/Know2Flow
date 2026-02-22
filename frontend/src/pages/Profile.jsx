@@ -1,5 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import {
+  addDoc,
+  collection,
+  serverTimestamp,
+  onSnapshot,
+} from "firebase/firestore";
+import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
 export default function Profile() {
   const { userId } = useParams();
@@ -7,6 +15,56 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const handleVideoCall = async () => {
+    try {
+      const currentUser = getAuth().currentUser;
+
+      if (!currentUser) {
+        alert("You must be logged in to make a call");
+        return;
+      }
+
+      if (currentUser.uid === userId) {
+        alert("You cannot call yourself");
+        return;
+      }
+
+      const channelName =
+        currentUser.uid < userId
+          ? `${currentUser.uid}_${userId}`
+          : `${userId}_${currentUser.uid}`;
+
+      const callRef = await addDoc(collection(db, "calls"), {
+        from: currentUser.uid,
+        to: userId,
+        channelName,
+        status: "ringing",
+        createdAt: serverTimestamp(),
+      });
+
+      alert("Calling... Waiting for user to accept");
+
+      const unsubscribe = onSnapshot(callRef, (docSnap) => {
+        const data = docSnap.data();
+
+        if (data?.status === "accepted") {
+          navigate(`/video-call/${channelName}/${callRef.id}`);
+          unsubscribe();
+        }
+
+        if (data?.status === "rejected") {
+          alert("Call rejected");
+          unsubscribe();
+        }
+      });
+
+    } catch (error) {
+      alert("Error initiating call: " + error.message);
+    }
+  };
+
+  
 
   useEffect(() => {
     setLoading(true);
@@ -63,7 +121,7 @@ export default function Profile() {
 
       <button
         className="relative mb-6 text-sm text-gray-400 hover:text-white transition"
-        onClick={() => navigate(-1)}
+        onClick={() => navigate(`/matches/${userId}`)}
       >
         ← Back
       </button>
@@ -214,7 +272,12 @@ transition"
               >
                 Message
               </button>
-
+               <button
+              className="px-5 py-2 rounded bg-blue-500 text-white"
+              onClick={handleVideoCall}
+            >
+              🎥 Video Call
+            </button>
               <button
                 className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15
@@ -247,3 +310,4 @@ transition"
     </div>
   );
 }
+

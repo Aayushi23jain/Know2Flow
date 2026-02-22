@@ -1,158 +1,309 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { doc, onSnapshot, updateDoc, getDoc } from "firebase/firestore";
+import { db } from "../firebase";
+import { getAuth } from "firebase/auth";
 
-/* ---------- CAMERA OFF PLACEHOLDER ---------- */
-function VideoSkeleton({ label }) {
-  return (
-    <div className="w-full h-full flex items-center justify-center
-      bg-gradient-to-br from-[#1f2933] to-[#0b0c10]">
-      <div className="flex flex-col items-center gap-3 animate-pulse">
-        <div className="w-24 h-24 rounded-full
-          bg-gradient-to-br from-gray-600 to-gray-800
-          flex items-center justify-center
-          text-3xl font-semibold text-gray-200">
-          {label}
-        </div>
-        <div className="h-3 w-28 rounded bg-gray-700" />
-      </div>
-    </div>
-  );
-}
+let AgoraRTC = null;
 
 export default function VideoCall() {
   const navigate = useNavigate();
-  const { userId } = useParams();
+  const { channelName, callId } = useParams();
 
   const localRef = useRef(null);
   const remoteRef = useRef(null);
-  const [stream, setStream] = useState(null);
+  const clientRef = useRef(null);
+  const localTracksRef = useRef(null);
+
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState(null);
+  const [callDuration, setCallDuration] = useState(0);
 
+  const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
+
+  /* ---------------- CALL TIMER ---------------- */
   useEffect(() => {
-    async function start() {
-      try {
-        const s = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-        setStream(s);
-        if (localRef.current) {
-          localRef.current.srcObject = s;
-          localRef.current.muted = true;
-        }
-      } catch {
-        setError("Camera or microphone access denied.");
-      }
-    }
-    start();
-    return () => stream?.getTracks().forEach(t => t.stop());
+    const timer = setInterval(() => {
+      setCallDuration((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  const toggleMic = () => {
-    stream?.getAudioTracks().forEach(t => (t.enabled = !t.enabled));
-    setMicOn(v => !v);
+  const formatTime = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(
+      2,
+      "0"
+    )}:${String(s).padStart(2, "0")}`;
   };
 
-  const toggleCamera = () => {
-    stream?.getVideoTracks().forEach(t => (t.enabled = !t.enabled));
-    setCameraOn(v => !v);
+  /* ---------------- TOGGLE MIC ---------------- */
+  const toggleMic = async () => {
+    if (!localTracksRef.current) return;
+    const audioTrack = localTracksRef.current[0];
+    await audioTrack.setEnabled(!micOn);
+    setMicOn(!micOn);
   };
 
-  const endCall = () => {
-    stream?.getTracks().forEach(t => t.stop());
-    navigate(-1);
+  /* ---------------- TOGGLE CAMERA ---------------- */
+  const toggleCamera = async () => {
+    if (!localTracksRef.current) return;
+    const videoTrack = localTracksRef.current[1];
+    await videoTrack.setEnabled(!cameraOn);
+    setCameraOn(!cameraOn);
   };
+
+  /* ---------------- END CALL ---------------- */
+  const endCall = async () => {
+    try {
+      if (localTracksRef.current) {
+        localTracksRef.current[0]?.close();
+        localTracksRef.current[1]?.close();
+      }
+
+      if (clientRef.current) {
+        await clientRef.current.leave();
+      }
+
+      const callDocRef = doc(db, "calls", callId);
+      const callSnap = await getDoc(callDocRef);
+      const data = callSnap.data();
+
+      const auth = getAuth();
+      const currentUserId = auth.currentUser.uid;
+
+      const otherUserId =
+        data.from === currentUserId
+          ? data.to
+          : data.from;
+
+      await updateDoc(callDocRef, { status: "ended" });
+
+      navigate(`/profile/${otherUserId}`);
+    } catch (err) {
+      console.error("Error ending call:", err);
+    }
+  };
+
+  /* ---------------- INITIALIZE CALL ---------------- */
+  useEffect(() => {
+    if (!APP_ID || !channelName) {
+      setError("Missing Agora App ID or Channel Name");
+      return;
+    }
+
+    let isMounted = true;
+    let client;
+
+    const initializeCall = async () => {
+      try {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+          throw new Error("User not authenticated");
+        }
+
+        const uid = Number(
+          currentUser.uid
+            .split("")
+            .reduce((acc, c) => acc + c.charCodeAt(0), 0)
+        );
+
+        if (!AgoraRTC) {
+          const module = await import("agora-rtc-sdk-ng");
+          AgoraRTC = module.default;
+        }
+
+        if (clientRef.current) return;
+
+        client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+        await client.enableDualStream();
+        client.setClientRole("host");
+        clientRef.current = client;
+
+        const response = await fetch(
+          "http://localhost:5000/api/agora/generate-token",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              channelName,
+              uid,
+            }),
+          }
+        );
+
+        const { token } = await response.json();
+
+        const joinedUid = await client.join(
+          APP_ID,
+          channelName,
+          token,
+          uid
+        );
+
+        console.log("Joined with UID:", joinedUid);
+
+        client.on("user-published", async (user, mediaType) => {
+  await client.subscribe(user, mediaType);
+
+  if (mediaType === "video") {
+    user.videoTrack.play(remoteRef.current);
+  }
+
+  if (mediaType === "audio") {
+    user.audioTrack.play();
+  }
+});
+
+
+       const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
+  {
+    encoderConfig: "music_standard",
+    AEC: true,
+    AGC: true,
+    ANS: true,
+  },
+  {
+    encoderConfig: {
+      width: 640,
+      height: 480,
+      frameRate: 24,
+      bitrateMin: 600,
+      bitrateMax: 1500,
+    },
+  }
+);
+
+        localTracksRef.current = tracks;
+
+        await client.publish(tracks);
+
+        tracks[1].play(localRef.current);
+
+        client.on("user-published", async (user, mediaType) => {
+  await client.subscribe(user, mediaType);
+
+  if (mediaType === "video" && user.videoTrack) {
+    remoteRef.current.innerHTML = ""; // clear old
+    user.videoTrack.play(remoteRef.current);
+  }
+
+  if (mediaType === "audio" && user.audioTrack) {
+    user.audioTrack.play();
+  }
+});
+
+
+        client.on("user-unpublished", (user, mediaType) => {
+  if (mediaType === "video") {
+    remoteRef.current.innerHTML = "";
+  }
+});
+
+
+      } catch (err) {
+        console.error("Error initializing call:", err);
+        setError(err.message || "Failed to start video call");
+      }
+    };
+
+    initializeCall();
+
+    return async () => {
+      if (!isMounted) return;
+      isMounted = false;
+
+      try {
+        if (localTracksRef.current) {
+          localTracksRef.current[0]?.close();
+          localTracksRef.current[1]?.close();
+        }
+
+        if (clientRef.current) {
+          await clientRef.current.leave();
+          clientRef.current.removeAllListeners();
+          clientRef.current = null;
+        }
+      } catch (err) {
+        console.error("Cleanup error:", err);
+      }
+    };
+  }, [APP_ID, channelName]);
+
+  /* ---------------- FIREBASE LISTENER ---------------- */
+  useEffect(() => {
+    if (!callId) return;
+
+    const callDocRef = doc(db, "calls", callId);
+    const unsubscribe = onSnapshot(callDocRef, (docSnap) => {
+      const data = docSnap.data();
+
+      if (data?.status === "ended") {
+        const auth = getAuth();
+        const currentUserId = auth.currentUser.uid;
+
+        const otherUserId =
+          data.from === currentUserId
+            ? data.to
+            : data.from;
+
+        navigate(`/profile/${otherUserId}`);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [callId]);
 
   return (
     <div className="h-screen w-screen bg-black text-white relative overflow-hidden">
 
-      {/* REMOTE VIDEO */}
       <div className="absolute inset-0">
         {error ? (
           <div className="h-full flex items-center justify-center text-red-400">
             {error}
           </div>
-        ) : cameraOn ? (
-          <video
-            ref={remoteRef}
-            className="w-full h-full object-cover"
-            autoPlay
-            playsInline
-          />
         ) : (
-          <VideoSkeleton label={(userId || "U")[0].toUpperCase()} />
+          <div ref={remoteRef} className="w-full h-full bg-black" />
         )}
       </div>
 
-      {/* SELF VIDEO (PIP) */}
       <div className="absolute bottom-28 right-6 w-40 h-56
         bg-gray-900 rounded-xl overflow-hidden border border-white/10">
-        {cameraOn && stream ? (
-          <video
-            ref={localRef}
-            className="w-full h-full object-cover"
-            autoPlay
-            muted
-            playsInline
-          />
-        ) : (
-          <VideoSkeleton label="Y" />
-        )}
+        <div ref={localRef} className="w-full h-full" />
       </div>
 
-      {/* TOP BAR */}
       <div className="absolute top-0 w-full px-6 py-4
         flex justify-between text-sm text-gray-300
         bg-gradient-to-b from-black/80 to-transparent">
         <span>Know2Flow • Video Call</span>
-        <span>00:00</span>
+        <span>{formatTime(callDuration)}</span>
       </div>
 
-      {/* CONTROLS */}
       <div className="absolute bottom-0 w-full py-6
         flex justify-center gap-6
         bg-gradient-to-t from-black/80 to-transparent">
 
-        {/* MIC */}
         <button onClick={toggleMic}
           className={`w-14 h-14 rounded-full flex items-center justify-center
           ${micOn ? "bg-gray-700" : "bg-red-600"}`}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-            <path d="M12 14a3 3 0 003-3V5a3 3 0 00-6 0v6a3 3 0 003 3z"/>
-            <path d="M19 11a7 7 0 01-14 0" fill="none" stroke="white" strokeWidth="2"/>
-            <line x1="12" y1="19" x2="12" y2="22" stroke="white" strokeWidth="2"/>
-          </svg>
+          🎤
         </button>
 
-        {/* CAMERA */}
         <button onClick={toggleCamera}
           className={`w-14 h-14 rounded-full flex items-center justify-center
           ${cameraOn ? "bg-gray-700" : "bg-red-600"}`}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-            <rect x="3" y="6" width="14" height="12" rx="2"/>
-            <polygon points="17,10 22,7 22,17 17,14"/>
-          </svg>
+          📷
         </button>
 
-        {/* END CALL */}
         <button onClick={endCall}
           className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-            <path d="M3 15c4-4 14-4 18 0"/>
-          </svg>
+          ❌
         </button>
-
-        {/* SCREEN SHARE */}
-        <button className="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-            <rect x="3" y="4" width="18" height="14" rx="2"/>
-            <path d="M12 18v4" stroke="white" strokeWidth="2"/>
-          </svg>
-        </button>
-
-       
       </div>
     </div>
   );
