@@ -260,51 +260,89 @@ export default function VideoCall() {
   }, [callId]);
 
   return (
-    <div className="h-screen w-screen bg-black text-white relative overflow-hidden">
+  <div className="h-screen w-screen bg-gradient-to-br from-black via-gray-900 to-black text-white relative overflow-hidden">
 
-      <div className="absolute inset-0">
-        {error ? (
-          <div className="h-full flex items-center justify-center text-red-400">
-            {error}
-          </div>
-        ) : (
-          <div ref={remoteRef} className="w-full h-full bg-black" />
-        )}
+    {/* Remote Video */}
+    <div className="absolute inset-0">
+      {error ? (
+        <div className="h-full flex items-center justify-center text-red-400 text-lg font-semibold">
+          {error}
+        </div>
+      ) : (
+        <div
+          ref={remoteRef}
+          className="w-full h-full bg-black object-cover"
+        />
+      )}
+    </div>
+
+    {/* Top Bar */}
+    <div className="absolute top-0 w-full px-8 py-5 flex justify-between items-center 
+      bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md">
+
+      <div className="flex flex-col">
+        <span className="text-lg font-semibold tracking-wide">
+          Know2Flow
+        </span>
+        <span className="text-xs text-gray-400">
+          Secure Video Call
+        </span>
       </div>
 
-      <div className="absolute bottom-28 right-6 w-40 h-56
-        bg-gray-900 rounded-xl overflow-hidden border border-white/10">
-        <div ref={localRef} className="w-full h-full" />
-      </div>
-
-      <div className="absolute top-0 w-full px-6 py-4
-        flex justify-between text-sm text-gray-300
-        bg-gradient-to-b from-black/80 to-transparent">
-        <span>Know2Flow • Video Call</span>
-        <span>{formatTime(callDuration)}</span>
-      </div>
-
-      <div className="absolute bottom-0 w-full py-6
-        flex justify-center gap-6
-        bg-gradient-to-t from-black/80 to-transparent">
-
-        <button onClick={toggleMic}
-          className={`w-14 h-14 rounded-full flex items-center justify-center
-          ${micOn ? "bg-gray-700" : "bg-red-600"}`}>
-          🎤
-        </button>
-
-        <button onClick={toggleCamera}
-          className={`w-14 h-14 rounded-full flex items-center justify-center
-          ${cameraOn ? "bg-gray-700" : "bg-red-600"}`}>
-          📷
-        </button>
-
-        <button onClick={endCall}
-          className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center">
-          ❌
-        </button>
+      <div className="bg-white/10 px-4 py-1 rounded-full text-sm font-mono tracking-wider">
+        {formatTime(callDuration)}
       </div>
     </div>
-  );
+
+    {/* Local Video (Picture-in-Picture) */}
+    <div className="absolute bottom-32 right-8 w-44 h-64 
+      bg-gray-900/60 backdrop-blur-lg 
+      rounded-2xl overflow-hidden border border-white/10 
+      shadow-2xl transition-all duration-300 hover:scale-105">
+
+      <div ref={localRef} className="w-full h-full object-cover" />
+    </div>
+
+    {/* Bottom Controls */}
+    <div className="absolute bottom-0 w-full py-8 flex justify-center items-center gap-8
+      bg-gradient-to-t from-black/90 to-transparent backdrop-blur-md">
+
+      {/* Mic Button */}
+      <button
+        onClick={toggleMic}
+        className={`w-16 h-16 rounded-full flex items-center justify-center 
+        text-xl transition-all duration-300 shadow-lg
+        ${micOn
+          ? "bg-white/10 hover:bg-white/20"
+          : "bg-red-600 hover:bg-red-700 scale-110"
+        }`}
+      >
+        🎤
+      </button>
+
+      {/* Camera Button */}
+      <button
+        onClick={toggleCamera}
+        className={`w-16 h-16 rounded-full flex items-center justify-center 
+        text-xl transition-all duration-300 shadow-lg
+        ${cameraOn
+          ? "bg-white/10 hover:bg-white/20"
+          : "bg-red-600 hover:bg-red-700 scale-110"
+        }`}
+      >
+        📷
+      </button>
+
+      {/* End Call Button */}
+      <button
+        onClick={endCall}
+        className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-700 
+        flex items-center justify-center text-2xl 
+        shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95"
+      >
+        ❌
+      </button>
+    </div>
+  </div>
+);
 }

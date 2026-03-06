@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-
+import { getAuth } from "firebase/auth";
 export default function Matches() {
   const { userId } = useParams();
   const [matches, setMatches] = useState([]);
@@ -96,11 +96,15 @@ export default function Matches() {
       </div>
 
       <button
-        onClick={() => navigate(-1)}
-        className="relative mt-12 text-gray-400 underline hover:text-white transition"
-      >
-        ← Back
-      </button>
+  onClick={() => {
+    const auth = getAuth();
+    const currentUserId = auth.currentUser?.uid;
+    navigate(`/dashboard/${currentUserId}`);
+  }}
+  className="relative mt-12 text-gray-400 underline hover:text-white transition"
+>
+  ← Back
+</button>
     </div>
   );
 }

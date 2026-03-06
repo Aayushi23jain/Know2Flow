@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { collection, query, where, onSnapshot, doc, updateDoc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  doc,
+  updateDoc,
+  getDoc
+} from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
@@ -13,7 +21,7 @@ export default function IncomingCallPopup() {
   const navigate = useNavigate();
   const auth = getAuth();
 
-  // Track logged-in user
+  // ✅ Track logged-in user
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
@@ -22,43 +30,60 @@ export default function IncomingCallPopup() {
     return () => unsubscribeAuth();
   }, [auth]);
 
-  // Listen for incoming calls
+  // ✅ Listen for incoming calls
   useEffect(() => {
     if (!currentUser) return;
 
     const q = query(
-      collection(db, "calls"),
-      where("to", "==", currentUser.uid),
-      where("status", "==", "ringing"),
-      where("createdAt", ">", new Date(Date.now() - 60 * 1000))
-    );
+  collection(db, "calls"),
+  where("to", "==", currentUser.uid),
+  where("status", "==", "ringing"),
+  where("createdAt", ">", new Date(Date.now() - 30000)) // only last 30 seconds
+);
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       if (snapshot.empty) {
         setIncomingCall(null);
-        setCallerName("Unknown");
-        setCallerPhoto(null);
         return;
       }
 
       const docSnap = snapshot.docs[0];
       const callData = { id: docSnap.id, ...docSnap.data() };
-      setIncomingCall(callData);
 
-      const userSnap = await getDoc(doc(db, "users", callData.from));
+      // 🔴 AUTO REMOVE POPUP IF CALL CANCELLED OR REJECTED
+      if (
+        callData.status === "cancelled" ||
+        callData.status === "rejected"
+      ) {
+        setIncomingCall(null);
+        return;
+      }
 
-      if (userSnap.exists()) {
-        setCallerName(userSnap.data().name || "Unknown");
-        setCallerPhoto(userSnap.data().photoURL || null);
-      } else {
-        setCallerName("Unknown");
-        setCallerPhoto(null);
+      // 🟢 Show popup only if ringing
+      if (callData.status === "ringing") {
+        setIncomingCall(callData);
+
+        // make sure caller id exists
+if (callData.from) {
+  const userRef = doc(db, "users", callData.from);
+  const userSnap = await getDoc(userRef);
+
+  if (userSnap.exists()) {
+    const data = userSnap.data();
+    setCallerName(data.name ? data.name : "Unknown");
+    setCallerPhoto(data.photoURL ? data.photoURL : null);
+  } else {
+    setCallerName("Unknown");
+    setCallerPhoto(null);
+  }
+}
       }
     });
 
     return () => unsubscribe();
   }, [currentUser]);
 
+  // ✅ Accept Call
   const acceptCall = async () => {
     if (!incomingCall) return;
 
@@ -70,6 +95,7 @@ export default function IncomingCallPopup() {
     setIncomingCall(null);
   };
 
+  // ❌ Reject Call
   const rejectCall = async () => {
     if (!incomingCall) return;
 

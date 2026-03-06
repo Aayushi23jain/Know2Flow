@@ -5,6 +5,7 @@ import {
   collection,
   serverTimestamp,
   onSnapshot,
+  doc, updateDoc,getDoc
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
@@ -15,11 +16,12 @@ export default function Profile() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [calling, setCalling] = useState(false);
+  const [callDocId, setCallDocId] = useState(null);
   const handleVideoCall = async () => {
     try {
       const currentUser = getAuth().currentUser;
-
+ 
       if (!currentUser) {
         alert("You must be logged in to make a call");
         return;
@@ -42,22 +44,25 @@ export default function Profile() {
         status: "ringing",
         createdAt: serverTimestamp(),
       });
-
-      alert("Calling... Waiting for user to accept");
+      setCallDocId(callRef.id);
+      setCalling(true);
 
       const unsubscribe = onSnapshot(callRef, (docSnap) => {
-        const data = docSnap.data();
+  const data = docSnap.data();
 
-        if (data?.status === "accepted") {
-          navigate(`/video-call/${channelName}/${callRef.id}`);
-          unsubscribe();
-        }
+  if (data?.status === "accepted") {
+    setCalling(false);
+    navigate(`/video-call/${channelName}/${callRef.id}`);
+    unsubscribe();
+  }
 
-        if (data?.status === "rejected") {
-          alert("Call rejected");
-          unsubscribe();
-        }
-      });
+  if (data?.status === "rejected") {
+    setCalling(false);
+    alert("Call rejected");
+    unsubscribe();
+  }
+});
+     
 
     } catch (error) {
       alert("Error initiating call: " + error.message);
@@ -273,10 +278,16 @@ transition"
                 Message
               </button>
                <button
-              className="px-5 py-2 rounded bg-blue-500 text-white"
+              className="px-5 py-2 rounded-full
+bg-gradient-to-r from-yellow-400/15 to-orange-400/15
+border border-yellow-400/30
+text-white-300
+hover:from-yellow-400/25 hover:to-orange-400/25
+hover:text-yellow-200
+transition"
               onClick={handleVideoCall}
             >
-              🎥 Video Call
+               Video Call
             </button>
               <button
                 className="px-5 py-2 rounded-full
@@ -307,7 +318,37 @@ transition"
           </div>
         </>
       </div>
+      {calling && (
+  <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+    <div className="bg-gradient-to-br from-[#161a23] to-[#0b0c10] 
+      border border-white/10 rounded-2xl p-10 text-center shadow-2xl">
+
+      <div className="text-2xl font-semibold mb-4">
+        📞 Calling {user?.name}...
+      </div>
+
+      <div className="text-gray-400 animate-pulse">
+        Waiting for user to accept
+      </div>
+
+      <button
+  onClick={async () => {
+    if (callDocId) {
+      await updateDoc(doc(db, "calls", callDocId), {
+        status: "cancelled",
+      });
+    }
+    setCalling(false);
+  }}
+  className="mt-6 px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 transition"
+>
+  Cancel
+</button>
     </div>
+  </div>
+)}
+    </div>
+    
   );
 }
 
