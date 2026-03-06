@@ -2,6 +2,7 @@
 import express from "express";
 import { db } from "../firebase.js";
 import verifyCookie from "../middlewares/verifyCookie.js";
+import { FieldValue } from "firebase-admin/firestore";
 
 const router = express.Router();
 
@@ -67,6 +68,28 @@ router.put("/:userId", verifyCookie, async (req, res) => {
   } catch (error) {
     console.error("Error updating user:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Block/report a user
+router.post("/:userId/block", verifyCookie, async (req, res) => {
+  try {
+    const currentUserId = req.user.uid; // from verifyCookie
+    const toBlockId = req.params.userId;
+
+    if (currentUserId === toBlockId) {
+      return res.status(400).json({ error: "You cannot block yourself." });
+    }
+
+    const userRef = db.collection("users").doc(currentUserId);
+
+    await userRef.update({
+      blockedUsers: FieldValue.arrayUnion(toBlockId),
+    });
+
+    res.json({ success: true, message: "User blocked successfully." });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to block user." });
   }
 });
 

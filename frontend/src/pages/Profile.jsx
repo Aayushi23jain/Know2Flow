@@ -5,7 +5,8 @@ import {
   collection,
   serverTimestamp,
   onSnapshot,
-  doc, updateDoc,getDoc
+  doc,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
@@ -14,6 +15,8 @@ export default function Profile() {
   const { userId } = useParams();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [popup, setPopup] = useState({ open: false, message: "" });
+  const [confirmPopup, setConfirmPopup] = useState({ open: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [calling, setCalling] = useState(false);
@@ -21,7 +24,7 @@ export default function Profile() {
   const handleVideoCall = async () => {
     try {
       const currentUser = getAuth().currentUser;
- 
+
       if (!currentUser) {
         alert("You must be logged in to make a call");
         return;
@@ -48,28 +51,24 @@ export default function Profile() {
       setCalling(true);
 
       const unsubscribe = onSnapshot(callRef, (docSnap) => {
-  const data = docSnap.data();
+        const data = docSnap.data();
 
-  if (data?.status === "accepted") {
-    setCalling(false);
-    navigate(`/video-call/${channelName}/${callRef.id}`);
-    unsubscribe();
-  }
+        if (data?.status === "accepted") {
+          setCalling(false);
+          navigate(`/video-call/${channelName}/${callRef.id}`);
+          unsubscribe();
+        }
 
-  if (data?.status === "rejected") {
-    setCalling(false);
-    alert("Call rejected");
-    unsubscribe();
-  }
-});
-     
-
+        if (data?.status === "rejected") {
+          setCalling(false);
+          alert("Call rejected");
+          unsubscribe();
+        }
+      });
     } catch (error) {
       alert("Error initiating call: " + error.message);
     }
   };
-
-  
 
   useEffect(() => {
     setLoading(true);
@@ -277,18 +276,18 @@ transition"
               >
                 Message
               </button>
-               <button
-              className="px-5 py-2 rounded-full
+              <button
+                className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15
 border border-yellow-400/30
 text-white-300
 hover:from-yellow-400/25 hover:to-orange-400/25
 hover:text-yellow-200
 transition"
-              onClick={handleVideoCall}
-            >
-               Video Call
-            </button>
+                onClick={handleVideoCall}
+              >
+                Video Call
+              </button>
               <button
                 className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15
@@ -302,7 +301,6 @@ transition"
                 Feedback
               </button>
             </div>
-
             <button
               className="px-5 py-2
 bg-gradient-to-r from-red-500/10 to-red-600/10
@@ -311,7 +309,7 @@ text-white-500
 hover:from-red-500/20 hover:to-red-600/20
 hover:text-red-300
 transition"
-              onClick={() => alert("Report user")}
+              onClick={() => setConfirmPopup({ open: true })}
             >
               Report
             </button>
@@ -319,36 +317,107 @@ transition"
         </>
       </div>
       {calling && (
-  <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
-    <div className="bg-gradient-to-br from-[#161a23] to-[#0b0c10] 
-      border border-white/10 rounded-2xl p-10 text-center shadow-2xl">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50">
+          <div
+            className="bg-gradient-to-br from-[#161a23] to-[#0b0c10] 
+      border border-white/10 rounded-2xl p-10 text-center shadow-2xl"
+          >
+            <div className="text-2xl font-semibold mb-4">
+              📞 Calling {user?.name}...
+            </div>
 
-      <div className="text-2xl font-semibold mb-4">
-        📞 Calling {user?.name}...
-      </div>
+            <div className="text-gray-400 animate-pulse">
+              Waiting for user to accept
+            </div>
 
-      <div className="text-gray-400 animate-pulse">
-        Waiting for user to accept
-      </div>
-
-      <button
-  onClick={async () => {
-    if (callDocId) {
-      await updateDoc(doc(db, "calls", callDocId), {
-        status: "cancelled",
-      });
-    }
-    setCalling(false);
-  }}
-  className="mt-6 px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 transition"
->
-  Cancel
-</button>
+            <button
+              onClick={async () => {
+                if (callDocId) {
+                  await updateDoc(doc(db, "calls", callDocId), {
+                    status: "cancelled",
+                  });
+                }
+                setCalling(false);
+              }}
+              className="mt-6 px-6 py-2 rounded-full bg-red-600 hover:bg-red-700 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+      {popup.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10] border border-yellow-400/30 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative">
+            <div className="text-lg text-white mb-6">{popup.message}</div>
+            <button
+              className="mt-2 px-6 py-2 rounded-full bg-yellow-500/80 hover:bg-yellow-400/90 text-black font-semibold transition"
+              onClick={() => {
+                setPopup({ open: false, message: "" });
+                const currentUser = getAuth().currentUser;
+                navigate(`/dashboard/${currentUser.uid}`);
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
+      {confirmPopup.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10] border border-red-400/30 rounded-2xl shadow-2xl p-8 max-w-md w-full text-center relative">
+            <div className="text-lg text-white mb-6">
+              Are you sure you want to report this user?
+            </div>
+            <div className="flex justify-center gap-4">
+              <button
+                className="px-6 py-2 rounded-full bg-red-500/80 hover:bg-red-400/90 text-white font-semibold transition"
+                onClick={async () => {
+                  setConfirmPopup({ open: false });
+                  try {
+                    const res = await fetch(
+                      `http://localhost:5000/user/${userId}/block`,
+                      {
+                        method: "POST",
+                        credentials: "include",
+                        headers: { "Content-Type": "application/json" },
+                      }
+                    );
+                    const data = await res.json();
+                    if (res.ok) {
+                      setPopup({
+                        open: true,
+                        message:
+                          "User has been reported. You will no longer see their profile in matches.",
+                      });
+                    } else {
+                      setPopup({
+                        open: true,
+                        message:
+                          data.error ||
+                          "User has been reported. You will no longer see their profile in matches.",
+                      });
+                    }
+                  } catch (err) {
+                    setPopup({
+                      open: true,
+                      message: "Error: " + err.message,
+                    });
+                  }
+                }}
+              >
+                Yes, Report
+              </button>
+              <button
+                className="px-6 py-2 rounded-full bg-gray-700 hover:bg-gray-600 text-white font-semibold transition"
+                onClick={() => setConfirmPopup({ open: false })}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-)}
-    </div>
-    
   );
 }
-

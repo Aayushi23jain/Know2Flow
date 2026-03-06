@@ -10,6 +10,7 @@ export default function Matches() {
   useEffect(() => {
     fetch("http://localhost:5000/search-profiles", {
       method: "POST",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
     })

@@ -1,12 +1,20 @@
 import express from "express";
 import { db } from "../firebase.js";
-import { index, safeFetch, INDEX_AVAILABLE, generateEmbedding } from "../pinecone.js";
+import verifyCookie from "../middlewares/verifyCookie.js";
+import {
+  index,
+  safeFetch,
+  INDEX_AVAILABLE,
+  generateEmbedding,
+} from "../pinecone.js";
 
 const router = express.Router();
 
 function cosineSimilarity(a, b) {
   if (!a || !b || a.length !== b.length) return null;
-  let dot = 0.0, normA = 0.0, normB = 0.0;
+  let dot = 0.0,
+    normA = 0.0,
+    normB = 0.0;
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
     normA += a[i] * a[i];
@@ -16,11 +24,9 @@ function cosineSimilarity(a, b) {
 }
 
 function intersectionCount(a = [], b = []) {
-  const setB = new Set((b || []).map(s => (s || "").toLowerCase()));
-  return (a || []).filter(s => setB.has((s || "").toLowerCase())).length;
+  const setB = new Set((b || []).map((s) => (s || "").toLowerCase()));
+  return (a || []).filter((s) => setB.has((s || "").toLowerCase())).length;
 }
-
-
 
 // Ensure embeddings only when Pinecone is available. Uses safeFetch and handles INDEX_NOT_FOUND gracefully.
 async function ensureEmbeddingsForUser(userId, userData) {
@@ -35,7 +41,9 @@ async function ensureEmbeddingsForUser(userId, userData) {
     records = fetchRes.records || fetchRes.vectors || {};
   } catch (err) {
     if (err?.code === "INDEX_NOT_FOUND") {
-      console.warn(`Pinecone index not found when fetching embeddings for ${userId}, skipping embedding ops.`);
+      console.warn(
+        `Pinecone index not found when fetching embeddings for ${userId}, skipping embedding ops.`
+      );
       return { teach: null, learn: null };
     }
     throw err;
@@ -47,35 +55,63 @@ async function ensureEmbeddingsForUser(userId, userData) {
   const forceRegen = userData.embeddingsStatus === "pending";
 
   try {
-    if ((forceRegen || !teachVec) && Array.isArray(userData.teachSkills) && userData.teachSkills.length) {
+    if (
+      (forceRegen || !teachVec) &&
+      Array.isArray(userData.teachSkills) &&
+      userData.teachSkills.length
+    ) {
       const teachText = userData.teachSkills.join(", ");
       const emb = await generateEmbedding(teachText);
       if (emb?.length) {
         try {
-          await index.upsert([{ id: teachId, values: emb, metadata: { userId, type: "teach" } }]);
+          await index.upsert([
+            { id: teachId, values: emb, metadata: { userId, type: "teach" } },
+          ]);
           teachVec = emb;
         } catch (upsertErr) {
-          if (String(upsertErr.message).includes("index") || upsertErr?.code === "INDEX_NOT_FOUND") {
-            console.warn("Pinecone index missing at upsert time, skipping upsert.");
+          if (
+            String(upsertErr.message).includes("index") ||
+            upsertErr?.code === "INDEX_NOT_FOUND"
+          ) {
+            console.warn(
+              "Pinecone index missing at upsert time, skipping upsert."
+            );
           } else {
-            console.warn("Pinecone upsert error (ignored):", upsertErr.message || upsertErr);
+            console.warn(
+              "Pinecone upsert error (ignored):",
+              upsertErr.message || upsertErr
+            );
           }
         }
       }
     }
 
-    if ((forceRegen || !learnVec) && Array.isArray(userData.learnSkills) && userData.learnSkills.length) {
+    if (
+      (forceRegen || !learnVec) &&
+      Array.isArray(userData.learnSkills) &&
+      userData.learnSkills.length
+    ) {
       const learnText = userData.learnSkills.join(", ");
       const emb = await generateEmbedding(learnText);
       if (emb?.length) {
         try {
-          await index.upsert([{ id: learnId, values: emb, metadata: { userId, type: "learn" } }]);
+          await index.upsert([
+            { id: learnId, values: emb, metadata: { userId, type: "learn" } },
+          ]);
           learnVec = emb;
         } catch (upsertErr) {
-          if (String(upsertErr.message).includes("index") || upsertErr?.code === "INDEX_NOT_FOUND") {
-            console.warn("Pinecone index missing at upsert time, skipping upsert.");
+          if (
+            String(upsertErr.message).includes("index") ||
+            upsertErr?.code === "INDEX_NOT_FOUND"
+          ) {
+            console.warn(
+              "Pinecone index missing at upsert time, skipping upsert."
+            );
           } else {
-            console.warn("Pinecone upsert error (ignored):", upsertErr.message || upsertErr);
+            console.warn(
+              "Pinecone upsert error (ignored):",
+              upsertErr.message || upsertErr
+            );
           }
         }
       }
@@ -83,31 +119,48 @@ async function ensureEmbeddingsForUser(userId, userData) {
     // ✅ If regeneration happened, mark embeddings as ready
     if (forceRegen) {
       await db.collection("users").doc(userId).update({
-        embeddingsStatus: "ready"
+        embeddingsStatus: "ready",
       });
     }
   } catch (err) {
-    console.warn("⚠️ Error generating/upserting embeddings for", userId, err.message || err);
+    console.warn(
+      "⚠️ Error generating/upserting embeddings for",
+      userId,
+      err.message || err
+    );
   }
 
   return { teach: teachVec, learn: learnVec };
 }
 
-router.post("/", async (req, res) => {
+router.post("/", verifyCookie, async (req, res) => {
   try {
     const { userId } = req.body;
     if (!userId) return res.status(400).json({ error: "Missing userId" });
 
+    // Fetch the current user's blockedUsers list
     const userDoc = await db.collection("users").doc(userId).get();
-    if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
+    if (!userDoc.exists)
+      return res.status(404).json({ error: "User not found" });
     const user = userDoc.data();
+    const blockedUsers = user.blockedUsers || [];
 
-    const snapshot = await db.collection("users").where("language", "==", user.language).get();
+    // Only include candidates that are not blocked
+    const snapshot = await db
+      .collection("users")
+      .where("language", "==", user.language)
+      .get();
     const candidates = [];
-    snapshot.forEach((doc) => { if (doc.id !== userId) candidates.push({ id: doc.id, ...doc.data() }); });
+    snapshot.forEach((doc) => {
+      if (doc.id !== userId && !blockedUsers.includes(doc.id))
+        candidates.push({ id: doc.id, ...doc.data() });
+    });
     if (!candidates.length) return res.status(200).json({ matches: [] });
 
-    console.log("Candidates found:", candidates.map(c => c.id));
+    console.log(
+      "Candidates found:",
+      candidates.map((c) => c.id)
+    );
 
     // Decide whether to use Pinecone embeddings
     let useEmbeddings = !!INDEX_AVAILABLE;
@@ -123,15 +176,24 @@ router.post("/", async (req, res) => {
       }
 
       // Fetch all vectors in a single call; on index-missing, fallback to skill-only scoring
-      const fetchIds = [ `${userId}-teach`, `${userId}-learn`, ...candidates.flatMap(c => [`${c.id}-teach`, `${c.id}-learn`]) ];
+      const fetchIds = [
+        `${userId}-teach`,
+        `${userId}-learn`,
+        ...candidates.flatMap((c) => [`${c.id}-teach`, `${c.id}-learn`]),
+      ];
       try {
         const fetchResponse = await safeFetch(fetchIds);
         vectors = fetchResponse.records || fetchResponse.vectors || {};
         userTeachEmbedding = vectors[`${userId}-teach`]?.values || null;
         userLearnEmbedding = vectors[`${userId}-learn`]?.values || null;
       } catch (err) {
-        if (err?.code === "INDEX_NOT_FOUND" || String(err.message).includes("index not found")) {
-          console.warn("Pinecone index not available at fetch time — falling back to skill-overlap scoring.");
+        if (
+          err?.code === "INDEX_NOT_FOUND" ||
+          String(err.message).includes("index not found")
+        ) {
+          console.warn(
+            "Pinecone index not available at fetch time — falling back to skill-overlap scoring."
+          );
           useEmbeddings = false;
           vectors = {};
           userTeachEmbedding = null;
@@ -144,82 +206,108 @@ router.post("/", async (req, res) => {
 
     // Score candidates: use embeddings if available, else fallback to skill-overlap
     const scored = candidates.map((c) => {
-  // 1️⃣ STRICT SKILL INTERSECTION CHECK (ALWAYS)
-  const learnIntersection = intersectionCount(
-    user.learnSkills || [],
-    c.teachSkills || []
-  );
+      // 1️⃣ STRICT SKILL INTERSECTION CHECK (ALWAYS)
+      const learnIntersection = intersectionCount(
+        user.learnSkills || [],
+        c.teachSkills || []
+      );
 
-  const teachIntersection = intersectionCount(
-    user.teachSkills || [],
-    c.learnSkills || []
-  );
+      const teachIntersection = intersectionCount(
+        user.teachSkills || [],
+        c.learnSkills || []
+      );
 
-  // // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
-  // if (learnIntersection === 0 && teachIntersection === 0) {
-  //   return null;
-  // }
-  const COSINE_THRESHOLD = 0.6;
-  // 2️⃣ IF EMBEDDINGS AVAILABLE → USE THEM FOR SCORING
-  if (useEmbeddings) {
-    const teachVec = vectors[`${c.id}-teach`]?.values || null;
-    const learnVec = vectors[`${c.id}-learn`]?.values || null;
+      // // 🚫 NO REAL SKILL MATCH → REJECT USER COMPLETELY
+      // if (learnIntersection === 0 && teachIntersection === 0) {
+      //   return null;
+      // }
+      const COSINE_THRESHOLD = 0.6;
+      // 2️⃣ IF EMBEDDINGS AVAILABLE → USE THEM FOR SCORING
+      if (useEmbeddings) {
+        const teachVec = vectors[`${c.id}-teach`]?.values || null;
+        const learnVec = vectors[`${c.id}-learn`]?.values || null;
 
-    if (userLearnEmbedding && teachVec && userTeachEmbedding && learnVec) {
-      const learnScore = cosineSimilarity(userLearnEmbedding, teachVec);
-      const teachScore = cosineSimilarity(userTeachEmbedding, learnVec);
-      const finalScore = ((learnScore ?? 0) + (teachScore ?? 0)) / 2;
+        if (userLearnEmbedding && teachVec && userTeachEmbedding && learnVec) {
+          const learnScore = cosineSimilarity(userLearnEmbedding, teachVec);
+          const teachScore = cosineSimilarity(userTeachEmbedding, learnVec);
+          const finalScore = ((learnScore ?? 0) + (teachScore ?? 0)) / 2;
 
-      if (finalScore < COSINE_THRESHOLD) {
-      return null; // Eliminate weak matches
-    }
+          if (finalScore < COSINE_THRESHOLD) {
+            return null; // Eliminate weak matches
+          }
+
+          return {
+            userId: c.id,
+            name: c.name || "Unnamed",
+            method: "embedding",
+            learnScore,
+            teachScore,
+            finalScore,
+          };
+        }
+      }
+
+      // 3️⃣ FALLBACK: PURE INTERSECTION SCORE
+      const totalUserSkills =
+        (user.learnSkills?.length || 0) + (user.teachSkills?.length || 0);
+
+      const finalScore =
+        totalUserSkills === 0
+          ? 0
+          : (learnIntersection + teachIntersection) / totalUserSkills;
 
       return {
         userId: c.id,
         name: c.name || "Unnamed",
-        method: "embedding",
-        learnScore,
-        teachScore,
-        finalScore
+        method: "skill-intersection",
+        learnScore: learnIntersection,
+        teachScore: teachIntersection,
+        finalScore,
       };
-    }
-  }
-
-  // 3️⃣ FALLBACK: PURE INTERSECTION SCORE
-  const totalUserSkills =
-    (user.learnSkills?.length || 0) +
-    (user.teachSkills?.length || 0);
-
-  const finalScore =
-    totalUserSkills === 0
-      ? 0
-      : (learnIntersection + teachIntersection) / totalUserSkills;
-
-  return {
-    userId: c.id,
-    name: c.name || "Unnamed",
-    method: "skill-intersection",
-    learnScore: learnIntersection,
-    teachScore: teachIntersection,
-    finalScore
-  };
-});
-
+    });
 
     const finalResults = scored
-  .filter(Boolean)                 // ⬅ removes nulls (NO-MATCH users)
-  .sort((a, b) => b.finalScore - a.finalScore)
-  .slice(0, 10);
+      .filter(Boolean) // ⬅ removes nulls (NO-MATCH users)
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .slice(0, 10);
 
     if (!finalResults.length) {
-      return res.status(200).json({ matches: [], hint: "No matches found. Ensure users have skills defined." });
+      return res.status(200).json({
+        matches: [],
+        hint: "No matches found. Ensure users have skills defined.",
+      });
     }
 
     return res.status(200).json({ matches: finalResults });
-
   } catch (error) {
     console.error("❌ Error in search-profile:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+router.get("/matches/:userId", verifyCookie, async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists)
+      return res.status(404).json({ error: "User not found" });
+
+    const blockedUsers = userDoc.data().blockedUsers || [];
+
+    // Fetch all users except the current user and blocked users
+    const usersSnapshot = await db.collection("users").get();
+    const profiles = [];
+    usersSnapshot.forEach((doc) => {
+      if (doc.id !== userId && !blockedUsers.includes(doc.id)) {
+        profiles.push({ id: doc.id, ...doc.data() });
+      }
+    });
+
+    // ...apply your skill matching logic here...
+
+    res.json(profiles);
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Failed to fetch matches." });
   }
 });
 
