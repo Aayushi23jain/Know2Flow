@@ -1,9 +1,6 @@
+import { getAuth } from "firebase/auth";
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { db } from "../firebase"; // adjust path if needed
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
-
 
 export default function Feedback() {
   const { userId } = useParams();
@@ -30,8 +27,20 @@ export default function Feedback() {
 const handleSubmit = async (e) => {
   e.preventDefault();
 
-  if (!feedback.trim() || rating === 0) {
-    setMessage("Please provide both feedback and rating.");
+  const currentUser = getAuth().currentUser;
+
+  if (!currentUser) {
+    alert("You must be logged in");
+    return;
+  }
+
+  if (currentUser.uid === userId) {
+    alert("You cannot give feedback to yourself");
+    return;
+  }
+
+  if (rating === 0) {
+    alert("Please select a rating");
     return;
   }
 
@@ -39,44 +48,35 @@ const handleSubmit = async (e) => {
   setMessage("");
 
   try {
-    // 👇 Replace this with actual logged-in user ID later
-    const auth = getAuth();
-const currentUser = auth.currentUser;
+    const res = await fetch("http://localhost:5000/feedback", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fromUserId: currentUser.uid,
+        toUserId: userId,
+        text: feedback,
+        rating: rating,
+      }),
+    });
 
-if (!currentUser) {
-  setMessage("❌ You must be logged in to submit feedback");
-  setSubmitting(false);
-  return;
-}
-await currentUser.reload();
-const currentUserId = currentUser.uid;
-const currentUserName =
-  currentUser.displayName ||
-  currentUser.email?.split("@")[0] ||
-  "Anonymous";
+    const data = await res.json();
 
-    // 📌 Reference to: users/{userId}/feedbacks
-    const feedbackRef = collection(db, "users", userId, "feedbacks");
-
-  await addDoc(feedbackRef, {
-  text: feedback,
-  rating: rating,
-  givenById: currentUserId,
-  givenByName: currentUserName,
-  createdAt: serverTimestamp(),
-});
-
-    setMessage("✅ Feedback submitted successfully!");
-    setFeedback("");
-    setRating(0);
-
+    if (res.ok) {
+      setMessage("✅ Feedback submitted successfully!");
+      setFeedback("");
+      setRating(0);
+    } else {
+      setMessage("❌ " + (data.message || "Error submitting feedback"));
+    }
   } catch (err) {
-    console.error(err);
-    setMessage("❌ Error submitting feedback");
+    setMessage("❌ Error: " + err.message);
   }
 
   setSubmitting(false);
 };
+  
 
   if (loading) {
     return (

@@ -1,19 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-// import {
-//   onSnapshot,
-//   doc,
-//   updateDoc,
-// } from "firebase/firestore";
+
+// Your existing import already has some of these, just add the missing ones:
 import {
   onSnapshot,
   doc,
   updateDoc,
   getDoc,
-  // setDoc,
   arrayUnion,
   arrayRemove,
-
+  collection,   // ADD
+  getDocs,      // ADD
+  query,        // ADD
+  orderBy,      // ADD
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
@@ -31,6 +30,9 @@ export default function Profile() {
   const [callDocId, setCallDocId] = useState(null);
   const [requestSent, setRequestSent] = useState(false);
   const [waitingEnd, setWaitingEnd] = useState(false);
+  // ADD these two states
+const [feedbacks, setFeedbacks] = useState([]);
+const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
   const [hasReceivedRequest, setHasReceivedRequest] = useState(false);
 const [sessionActive, setSessionActive] = useState(false);
   const handleVideoCall = async () => {
@@ -80,6 +82,21 @@ const [sessionActive, setSessionActive] = useState(false);
     alert("Error initiating call: " + error.message);
   }
 };
+
+// ADD this useEffect
+useEffect(() => {
+  if (!userId) return;
+  setLoadingFeedbacks(true);
+  const feedbackRef = collection(db, "users", userId, "feedbacks");
+  const q = query(feedbackRef, orderBy("createdAt", "desc"));
+  getDocs(q)
+    .then((snap) => {
+      const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setFeedbacks(data);
+    })
+    .catch((err) => console.error("Failed to fetch feedbacks:", err))
+    .finally(() => setLoadingFeedbacks(false));
+}, [userId]);
 
   useEffect(() => {
   setLoading(true);
@@ -339,23 +356,7 @@ const handleEndSession = async () => {
   }
 };
 
-  const feedbacks = [
-    {
-      reviewer: "Alice",
-      rating: 5,
-      text: "Great mentor! Helped me understand complex topics easily.",
-    },
-    {
-      reviewer: "Bob",
-      rating: 4,
-      text: "Very supportive and patient. Highly recommend!",
-    },
-    {
-      reviewer: "Charlie",
-      rating: 4,
-      text: "Good teaching skills, but could be more responsive.",
-    },
-  ];
+  
 
   if (loading)
     return (
@@ -472,48 +473,48 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
           </div>
 
           <div className="mt-8">
-            <h3 className="font-semibold text-gray-300 mb-3">
-              Feedback Received
-            </h3>
-            <div className="space-y-4">
-              {feedbacks.slice(0, 3).map((fb, idx) => (
-                <div
-                  key={idx}
-                  className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <div className="font-semibold text-yellow-300">
-                      {fb.reviewer}
-                    </div>
-                    <div className="text-gray-200 mt-1">{fb.text}</div>
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 sm:mt-0">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <span
-                        key={star}
-                        className={`text-lg ${
-                          star <= fb.rating
-                            ? "text-yellow-400"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <div className="flex justify-end mt-2">
-                <span
-                  className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold transition"
-                  onClick={() => alert("View more feedbacks coming soon!")}
-                >
-                  View More
-                </span>
-              </div>
+  <h3 className="font-semibold text-gray-300 mb-3">Feedback Received</h3>
+  {loadingFeedbacks ? (
+    <div className="text-gray-500 text-sm">Loading feedbacks...</div>
+  ) : feedbacks.length === 0 ? (
+    <div className="text-gray-500 text-sm">No feedbacks yet.</div>
+  ) : (
+    <div className="space-y-4">
+      {feedbacks.slice(0, 3).map((fb) => (
+        <div
+          key={fb.id}
+          className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <div className="font-semibold text-yellow-300">
+              {fb.givenByName || "Anonymous"}
             </div>
+            <div className="text-gray-200 mt-1">{fb.text}</div>
           </div>
-
+          <div className="flex items-center gap-1 mt-2 sm:mt-0">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <span
+                key={star}
+                className={`text-lg ${
+                  star <= fb.rating ? "text-yellow-400" : "text-gray-500"
+                }`}
+              >
+                ★
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+      {feedbacks.length > 3 && (
+        <div className="flex justify-end mt-2">
+          <span className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold transition">
+            +{feedbacks.length - 3} more feedbacks
+          </span>
+        </div>
+      )}
+    </div>
+  )}
+</div>
           {/* ACTION BUTTONS – ALWAYS VISIBLE */}
           <div className="mt-8 flex justify-between items-center">
             <div className="flex gap-4">
