@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import { db } from "../firebase"; // your firebase.js
-import {
-  collection,
-  query,
-  orderBy,
+import { db } from "../firebase";
+import { 
+  collection, 
+  query, 
+  orderBy, 
   onSnapshot,
-} from "firebase/firestore";
-
+  doc, 
+  setDoc, 
+  addDoc, 
+  serverTimestamp 
+} from "firebase/firestore"; // <— all imports together
 export default function ChatPage() {
   const { userId } = useParams(); // receiver
   const navigate = useNavigate();
@@ -68,18 +71,68 @@ export default function ChatPage() {
   }, [meUid, userId]);
 
   /* ================= SEND MESSAGE ================= */
-  const sendMessage = () => {
+
+const sendMessage = async () => {
   if (!text.trim()) return;
 
+  // 1️⃣ Emit socket as before
   socketRef.current.emit("sendMessage", {
     receiverId: userId,
     text: text.trim(),
   });
+fetch(`http://localhost:5000/user/${userId}/addToChat`, { 
+  method: "POST",
+  credentials: "include",
+})
+  // 2️⃣ Add/update Firestore chat
+  if (meUid) {
+    try {
+      const chatId = [meUid, userId].sort().join("_");
+      const chatRef = doc(db, "chats", chatId);
+
+      // create chat document if it doesn't exist, merge to avoid overwriting
+      await setDoc(
+        chatRef,
+        {
+          participants: [meUid, userId],
+          userNames: {
+            [meUid]: "Me",         // you can replace with actual meName
+            [userId]: user?.name || "User",
+          },
+        },
+        { merge: true }
+      );
+
+      // add message to subcollection
+      const msgRef = collection(chatRef, "messages");
+      await addDoc(msgRef, {
+        senderId: meUid,
+        text: text.trim(),
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Error saving chat to Firestore:", err);
+    }
+  }
 
   setText("");
 };
 
+useEffect(() => {
+  if (!socketRef.current) return;
 
+  socketRef.current.on("receiveMessage", (msg) => {
+    // add message to local messages state
+    setMessages(prev => [...prev, msg]);
+
+    // refresh chat list if needed
+    fetch("http://localhost:5000/user/me/chats", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(setChatUsers); // assuming you have state for chat list
+  });
+
+  return () => socketRef.current.off("receiveMessage");
+}, []);
   /* ================= AUTOSCROLL ================= */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

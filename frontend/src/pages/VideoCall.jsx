@@ -33,70 +33,7 @@ const auth = getAuth();
   const myName = currentUser?.displayName || "User"; // Now it's defined globally for this component
 const socketRef = useRef(null);
   const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
-// VideoCall.jsx
-useEffect(() => {
-  if (!channelName) return;
 
-  const socket = io("http://localhost:5000", { withCredentials: true });
-  socketRef.current = socket;
-
-  socket.on("connect", () => {
-    console.log("✅ Socket Connected:", socket.id);
-    socket.emit("join-channel", channelName); 
-  });
-
-  // Listener logic
-  const handleReceive = (data) => {
-    const isMe = data.senderId === socket.id;
-    const name = isMe ? "You" : data.userName;
-    setCaptions(`${name}: ${data.text}`);
-  };
-
-  socket.on("caption-receive", handleReceive);
-
-  return () => {
-    // CRITICAL: Clean up the specific listener and the socket
-    socket.off("caption-receive", handleReceive);
-    socket.disconnect();
-    socketRef.current = null;
-  };
-}, [channelName]); // Only re-run if channelName changes
-useEffect(() => {
-  if (!channelName) return;
-
-  // ONE connection, not two!
-  const socket = io("http://localhost:5000", { withCredentials: true });
-  socketRef.current = socket;
-
-  socket.on("connect", () => {
-    console.log("✅ Single Socket Connected:", socket.id);
-    socket.emit("join-channel", channelName); 
-  });
-
-  const handleReceive = (data) => {
-    // Check if the sender is NOT me
-    // We check against the current socket's actual ID
-    if (data.senderId === socket.id) {
-      console.log("☁️ Ignoring my own reflection");
-      return; 
-    }
-
-    console.log("📩 Received from partner:", data);
-    setCaptions(`${data.userName}: ${data.text}`);
-
-    const hideTimer = setTimeout(() => {
-      setCaptions("");
-    }, 4000);
-  };
-
-  socket.on("caption-receive", handleReceive);
-
-  return () => {
-    socket.off("caption-receive", handleReceive);
-    socket.disconnect();
-    socketRef.current = null;
-  };
-}, [channelName]); // Keep this as the only dependency
   /* ---------------- CALL TIMER ---------------- */
   useEffect(() => {
     const timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);

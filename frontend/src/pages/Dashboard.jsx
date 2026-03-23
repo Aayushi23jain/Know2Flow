@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
-import { db } from "../firebase";
+
 
 export default function Dashboard() {
   const { userId: paramUserId } = useParams();
@@ -14,25 +13,8 @@ export default function Dashboard() {
   const [showAllFeedbacks, setShowAllFeedbacks] = useState(false);
   const navigate = useNavigate();
 
-  const avgRating = feedbacks.length
-    ? (feedbacks.reduce((sum, fb) => sum + fb.rating, 0) / feedbacks.length).toFixed(1)
-    : null;
-
   useEffect(() => {
-    if (!userId) return;
-    setLoadingFeedbacks(true);
-    const feedbackRef = collection(db, "users", userId, "feedbacks");
-    const q = query(feedbackRef, orderBy("createdAt", "desc"));
-    getDocs(q)
-      .then((snap) => {
-        const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-        setFeedbacks(data);
-      })
-      .catch((err) => console.error("Failed to fetch feedbacks:", err))
-      .finally(() => setLoadingFeedbacks(false));
-  }, [userId]);
-
-  useEffect(() => {
+    // determine the logged-in UID (protected)
     fetch("http://localhost:5000/user/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -41,25 +23,84 @@ export default function Dashboard() {
       .catch(() => setMeUid(null));
   }, []);
 
+  // Fetch user profile
   useEffect(() => {
-    if (!userId) {
-      setLoadingUser(false);
-      setUser(null);
-      return;
-    }
+    if (!userId) return;
     setLoadingUser(true);
     fetch(`http://localhost:5000/user/${userId}`, { credentials: "include" })
-      .then((r) => {
-        if (!r.ok) throw new Error("User not found");
-        return r.json();
-      })
+      .then((r) => (r.ok ? r.json() : null))
       .then((data) => setUser(data))
-      .catch((err) => {
-        console.warn("Failed to fetch user:", err);
-        setUser(null);
-      })
+      .catch((err) => console.warn("Failed to fetch user:", err))
       .finally(() => setLoadingUser(false));
   }, [userId]);
+// Listen for missed calls
+  useEffect(() => {
+    if (!meUid) return;
+    const q = query(
+      collection(db, "calls"),
+      where("to", "==", meUid),
+      where("status", "==", "missed")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const calls = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setMissedCalls(calls);
+    });
+    return () => unsubscribe();
+  }, [meUid]);
+
+ // Socket connection
+  useEffect(() => {
+    if (!meUid) return;
+    socketRef.current = io("http://localhost:5000", { withCredentials: true });
+
+    socketRef.current.on("connect", () => console.log("✅ Dashboard socket connected"));
+
+    socketRef.current.on("newMessageNotification", (data) => {
+      console.log("🔔 Notification received:", data);
+
+      // Store message
+      setMessages((prev) => {
+        const prevMsgs = prev[data.senderId] || [];
+        return { ...prev, [data.senderId]: [...prevMsgs, data] };
+      });
+
+      // Update unread count if this chat is not selected
+      if (!selectedUser || selectedUser.uid !== data.senderId) {
+        setUnreadCounts((prev) => ({
+          ...prev,
+          [data.senderId]: (prev[data.senderId] || 0) + 1,
+        }));
+      }
+
+      // Add to chatUsers list if new
+      setChatUsers((prev) => {
+        if (!prev.find((u) => u.uid === data.senderId)) {
+          return [...prev, { uid: data.senderId, name: data.senderName || "User" }];
+        }
+        return prev;
+      });
+    });
+
+    return () => socketRef.current.disconnect();
+  }, [meUid, selectedUser]);
+
+  // Select a chat user
+  const handleSelectUser = (user) => {
+    setSelectedUser(user);
+    setUnreadCounts((prev) => ({ ...prev, [user.uid]: 0 }));
+  };
+
+  // Sample chat users (for demonstration)
+  useEffect(() => {
+    if (!meUid) return;
+    const q = query(collection(db, "users"), where("uid", "!=", meUid));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const allUsers = snap.docs.map((d) => d.data());
+      setChatUsers(allUsers);
+    });
+    return () => unsubscribe();
+  }, [meUid]);
+
 
   const isOwner = meUid && meUid === userId;
 
@@ -298,21 +339,25 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
             />
           </button>
 
-          <button
-            onClick={() => alert("Chat coming soon!")}
-            className="relative group bg-gradient-to-br from-[#1a1d2b] to-[#0b0c10]
+    
+
+  {/* Chat */}
+  <button
+    onClick={() => alert("Chat coming soon!")}
+    className="relative group bg-gradient-to-br from-[#1a1d2b] to-[#0b0c10]
     text-gray-100 px-6 py-3 rounded-full
     border border-white/10
     shadow-[0_15px_40px_rgba(0,0,0,0.9)]
     hover:bg-[#1f2233] hover:scale-105 transition-all duration-300"
-          >
-            <span className="relative z-10">💬 Chat</span>
-            <span
-              className="absolute inset-0 rounded-full
-    bg-white/5 blur-lg opacity-0 group-hover:opacity-100 transition"
-            />
-          </button>
-        </div>
+  >
+    <span className="relative z-10">💬 Chat</span>
+
+    {/* subtle hover glow */}
+    <span className="absolute inset-0 rounded-full
+    bg-white/5 blur-lg opacity-0 group-hover:opacity-100 transition" />
+  </button>
+</div>
+
       </main>
     </div>
   );

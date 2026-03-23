@@ -11,12 +11,14 @@ import Challenge from "./pages/Challenge";
 import VideoCall from "./pages/VideoCall";
 import Leaderboard from "./pages/Leaderboard";
 import Edit from "./pages/Edit";
+import ChatLayout from "./pages/ChatLayout"; // adjust path if needed
 import IncomingCallPopup from "./components/IncomingCallPopup";
-
+// import NotificationListener from "./components/NotificationListener";
 function App() {
   
   return (
     <>
+   
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -25,6 +27,7 @@ function App() {
         <Route path="/matches/:userId" element={<Matches />} />
         <Route path="/profile/:userId" element={<Profile />} />
         <Route path="/chat/:userId" element={<ChatPage />} />
+        <Route path="/chat" element={<ChatLayout />} />
         <Route path="/feedback/:userId" element={<Feedback />} />
         <Route path="/edit/:userId" element={<Edit />} />
         <Route path="/video-call/:channelName/:callId" element={<VideoCall />} />

@@ -70,7 +70,58 @@ router.put("/:userId", verifyCookie, async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+// Get all users (for chat list)
+router.get("/", verifyCookie, async (req, res) => {
+  try {
+    const snapshot = await db.collection("users").get();
+    const users = snapshot.docs.map(doc => ({ userId: doc.id, ...doc.data() }));
+    res.json(users);
+  } catch (err) {
+    console.error("Error fetching users:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+router.post("/:userId/addToChat", verifyCookie, async (req, res) => {
+  const currentUserId = req.user.uid;
+  const otherUserId = req.params.userId;
 
+  try {
+    const userRef = db.collection("users").doc(currentUserId);
+    await userRef.update({
+      chatUsers: admin.firestore.FieldValue.arrayUnion(otherUserId),
+    });
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+// Get all users you have chats with
+router.get("/me/chats", verifyCookie, async (req, res) => {
+  try {
+    const meUid = req.user.uid;
+
+    const userDoc = await db.collection("users").doc(meUid).get();
+    if (!userDoc.exists) return res.status(404).json({ error: "User not found" });
+
+    // chatUsers is an array of UIDs you have chatted with
+    const chatUsers = userDoc.data().chatUsers || [];
+
+    // fetch their basic info
+    const usersData = [];
+    for (let uid of chatUsers) {
+      const docSnap = await db.collection("users").doc(uid).get();
+      if (docSnap.exists) {
+        usersData.push({ userId: docSnap.id, name: docSnap.data().name });
+      }
+    }
+
+    res.json(usersData);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 // Block/report a user
 router.post("/:userId/block", verifyCookie, async (req, res) => {
   try {

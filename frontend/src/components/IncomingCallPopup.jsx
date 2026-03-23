@@ -31,11 +31,28 @@ export default function IncomingCallPopup() {
 
     return () => unsubscribeAuth();
   }, [auth]);
+<<<<<<< Updated upstream
 
   useEffect(() => {
   console.log("Current user:", currentUser);
 }, [currentUser]);
 
+=======
+// When popup disappears without accept
+useEffect(() => {
+  if (!incomingCall) return;
+
+  const timer = setTimeout(async () => {
+    if (incomingCall.status === "ringing") {
+      await updateDoc(doc(db, "calls", incomingCall.id), {
+        status: "missed", // 🔥 NEW STATUS
+      });
+    }
+  }, 30000); // 30 sec
+
+  return () => clearTimeout(timer);
+}, [incomingCall]);
+>>>>>>> Stashed changes
   // ✅ Listen for incoming calls
   useEffect(() => {
     if (!currentUser) return;
