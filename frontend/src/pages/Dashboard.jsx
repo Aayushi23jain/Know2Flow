@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-// ADD this import
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
 import { db } from "../firebase";
 
@@ -12,25 +11,28 @@ export default function Dashboard() {
   const [meUid, setMeUid] = useState(null);
   const [feedbacks, setFeedbacks] = useState([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
+  const [showAllFeedbacks, setShowAllFeedbacks] = useState(false);
   const navigate = useNavigate();
 
-  // ADD this useEffect
-useEffect(() => {
-  if (!userId) return;
-  setLoadingFeedbacks(true);
-  const feedbackRef = collection(db, "users", userId, "feedbacks");
-  const q = query(feedbackRef, orderBy("createdAt", "desc"));
-  getDocs(q)
-    .then((snap) => {
-      const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      setFeedbacks(data);
-    })
-    .catch((err) => console.error("Failed to fetch feedbacks:", err))
-    .finally(() => setLoadingFeedbacks(false));
-}, [userId]);
+  const avgRating = feedbacks.length
+    ? (feedbacks.reduce((sum, fb) => sum + fb.rating, 0) / feedbacks.length).toFixed(1)
+    : null;
 
   useEffect(() => {
-    // determine the logged-in UID (protected)
+    if (!userId) return;
+    setLoadingFeedbacks(true);
+    const feedbackRef = collection(db, "users", userId, "feedbacks");
+    const q = query(feedbackRef, orderBy("createdAt", "desc"));
+    getDocs(q)
+      .then((snap) => {
+        const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        setFeedbacks(data);
+      })
+      .catch((err) => console.error("Failed to fetch feedbacks:", err))
+      .finally(() => setLoadingFeedbacks(false));
+  }, [userId]);
+
+  useEffect(() => {
     fetch("http://localhost:5000/user/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -61,14 +63,11 @@ useEffect(() => {
 
   const isOwner = meUid && meUid === userId;
 
-  
-
   return (
     <div
       className="min-h-screen relative overflow-hidden text-white
 bg-[radial-gradient(ellipse_at_top_left,_rgba(255,186,73,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(255,215,0,0.05),_transparent_55%),linear-gradient(135deg,#0b0b10,#111421,#141a2b,#0a0c14)]"
     >
-      {/* ambient background glow */}
       <div className="absolute top-[-120px] left-[-120px] w-[420px] h-[420px] bg-orange-400/10 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-120px] right-[-120px] w-[420px] h-[420px] bg-yellow-400/10 rounded-full blur-[140px]" />
 
@@ -78,17 +77,11 @@ bg-gradient-to-r from-[#11131a]/80 to-[#0b0c10]/80
 backdrop-blur-md border-b border-white/5"
       >
         <div className="flex items-center justify-between px-4 md:px-8 max-w-full">
-          {/* left: logo + name */}
           <div className="flex items-center gap-3">
-            <img
-              src="/logo.png"
-              alt="Know2Flow Logo"
-              className="w-8 h-8 object-contain"
-            />
+            <img src="/logo.png" alt="Know2Flow Logo" className="w-8 h-8 object-contain" />
             <div className="text-2xl font-bold text-orange-400">Know2Flow</div>
           </div>
 
-          {/* right: nav + badges + compact profile */}
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex gap-6 text-sm text-gray-300">
               <button
@@ -97,11 +90,9 @@ backdrop-blur-md border-b border-white/5"
               >
                 Challenge
               </button>
-
               <a href="/summary" className="hover:text-white">
                 Summary
               </a>
-              {/*  <a href="/leaderboard" className="hover:text-white">LeaderBoard</a> */}
               <button
                 onClick={() => navigate(`/leaderboard/${userId}`)}
                 className="hover:text-white transition-colors"
@@ -120,26 +111,15 @@ backdrop-blur-md border-b border-white/5"
         </div>
       </header>
 
-      {/* Main single-column content */}
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Title */}
         <div className="text-center flex flex-col items-center">
-          <img
-            src="/logo.png"
-            alt="Know2Flow Logo"
-            className="w-24 h-24 mb-4 object-contain"
-          />
-
+          <img src="/logo.png" alt="Know2Flow Logo" className="w-24 h-24 mb-4 object-contain" />
           <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white">
             KNOW2FLOW
           </h1>
-
-          <p className="mt-6 text-center text-gray-300 italic">
-            Swap Skills, No Bills
-          </p>
+          <p className="mt-6 text-center text-gray-300 italic">Swap Skills, No Bills</p>
         </div>
 
-        {/* Full-width profile card */}
         <div
           className="mt-10 mb-10 relative rounded-2xl p-6
 bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10]
@@ -165,31 +145,28 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
                   {user.name ? user.name.charAt(0).toUpperCase() : "U"}
                 </div>
                 <div>
-                  <div className="text-lg font-semibold">
-                    {user.name || "Guest"}
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    {user.email || ""}
-                  </div>
+                  <div className="text-lg font-semibold">{user.name || "Guest"}</div>
+                  <div className="text-sm text-gray-400">{user.email || ""}</div>
                   <div className="text-xs text-gray-400 mt-1">
-                    Tokens:{" "}
-                    <span className="text-yellow-400">{user.tokens ?? 0}</span>
+                    Tokens: <span className="text-yellow-400">{user.tokens ?? 0}</span>
                   </div>
+                  {/* Average star rating */}
                   <div className="flex items-center gap-1 mt-1">
                     {[1, 2, 3, 4, 5].map((star) => (
                       <span
                         key={star}
                         className={`text-xl ${
-                          star <= 4 ? "text-yellow-400" : "text-gray-500"
+                          star <= Math.round(avgRating) ? "text-yellow-400" : "text-gray-500"
                         }`}
-                        title="4 out of 5 stars"
                       >
                         ★
                       </span>
                     ))}
-
-                    {/* RIGHT: medal */}
-                    {/* Achievement Badge – top right */}
+                    {avgRating ? (
+                      <span className="ml-2 text-sm text-gray-400">{avgRating} / 5</span>
+                    ) : (
+                      <span className="ml-2 text-sm text-gray-500">No ratings yet</span>
+                    )}
                     <img
                       src="/medal.png"
                       alt="Achievement Badge"
@@ -201,15 +178,10 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
               </div>
 
               <div>
-                <div className="text-sm text-gray-400 font-semibold mb-2">
-                  Teach Skills
-                </div>
+                <div className="text-sm text-gray-400 font-semibold mb-2">Teach Skills</div>
                 <div className="flex flex-wrap gap-2">
                   {(user.teachSkills || []).map((s, i) => (
-                    <span
-                      key={i}
-                      className="bg-gray-700 px-3 py-1 rounded-full text-sm"
-                    >
+                    <span key={i} className="bg-gray-700 px-3 py-1 rounded-full text-sm">
                       {s}
                     </span>
                   ))}
@@ -217,64 +189,66 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
               </div>
 
               <div>
-                <div className="text-sm text-gray-400 font-semibold mb-2">
-                  Learn Skills
-                </div>
+                <div className="text-sm text-gray-400 font-semibold mb-2">Learn Skills</div>
                 <div className="flex flex-wrap gap-2">
                   {(user.learnSkills || []).map((s, i) => (
-                    <span
-                      key={i}
-                      className="bg-gray-700 px-3 py-1 rounded-full text-sm"
-                    >
+                    <span key={i} className="bg-gray-700 px-3 py-1 rounded-full text-sm">
                       {s}
                     </span>
                   ))}
                 </div>
               </div>
 
+              {/* Feedbacks section */}
               <div className="mt-8">
-  <h3 className="font-semibold text-gray-300 mb-3">Feedback Received</h3>
-  {loadingFeedbacks ? (
-    <div className="text-gray-500 text-sm">Loading feedbacks...</div>
-  ) : feedbacks.length === 0 ? (
-    <div className="text-gray-500 text-sm">No feedbacks yet.</div>
-  ) : (
-    <div className="space-y-4">
-      {feedbacks.slice(0, 3).map((fb) => (
-        <div
-          key={fb.id}
-          className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <div className="font-semibold text-yellow-300">
-              {fb.givenByName || "Anonymous"}
-            </div>
-            <div className="text-gray-200 mt-1">{fb.text}</div>
-          </div>
-          <div className="flex items-center gap-1 mt-2 sm:mt-0">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <span
-                key={star}
-                className={`text-lg ${
-                  star <= fb.rating ? "text-yellow-400" : "text-gray-500"
-                }`}
-              >
-                ★
-              </span>
-            ))}
-          </div>
-        </div>
-      ))}
-      {feedbacks.length > 3 && (
-        <div className="flex justify-end mt-2">
-          <span className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold transition">
-            +{feedbacks.length - 3} more feedbacks
-          </span>
-        </div>
-      )}
-    </div>
-  )}
-</div>
+                <h3 className="font-semibold text-gray-300 mb-3">Feedback Received</h3>
+                {loadingFeedbacks ? (
+                  <div className="text-gray-500 text-sm">Loading feedbacks...</div>
+                ) : feedbacks.length === 0 ? (
+                  <div className="text-gray-500 text-sm">No feedbacks yet.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map((fb) => (
+                      <div
+                        key={fb.id}
+                        className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <div className="font-semibold text-yellow-300">
+                            {fb.givenByName || "Anonymous"}
+                          </div>
+                          <div className="text-gray-200 mt-1">{fb.text}</div>
+                        </div>
+                        <div className="flex items-center gap-1 mt-2 sm:mt-0">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <span
+                              key={star}
+                              className={`text-lg ${
+                                star <= fb.rating ? "text-yellow-400" : "text-gray-500"
+                              }`}
+                            >
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+
+                    {feedbacks.length > 3 && (
+                      <div className="flex justify-end mt-2">
+                        <span
+                          onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
+                          className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold transition"
+                        >
+                          {showAllFeedbacks
+                            ? "Show Less"
+                            : `+${feedbacks.length - 3} more feedbacks`}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="flex gap-3 flex-col sm:flex-row">
                 {isOwner && (
@@ -285,7 +259,6 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
                     Edit Profile
                   </button>
                 )}
-
                 <button
                   onClick={() => {
                     localStorage.removeItem("userId");
@@ -307,10 +280,7 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
           )}
         </div>
 
-        {/* Bottom actions */}
-
         <div className="mt-6 flex flex-col sm:flex-row justify-center gap-6">
-          {/* Match Skills */}
           <button
             onClick={() => navigate(`/matches/${userId}`)}
             disabled={!userId}
@@ -322,15 +292,12 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
     disabled:opacity-60 disabled:hover:scale-100"
           >
             <span className="relative z-10">Match Skills</span>
-
-            {/* glow ring */}
             <span
               className="absolute inset-0 rounded-full
     bg-yellow-400/30 blur-xl opacity-0 group-hover:opacity-100 transition"
             />
           </button>
 
-          {/* Chat */}
           <button
             onClick={() => alert("Chat coming soon!")}
             className="relative group bg-gradient-to-br from-[#1a1d2b] to-[#0b0c10]
@@ -340,8 +307,6 @@ bg-gradient-to-br from-orange-400/4 via-transparent to-yellow-400/4 pointer-even
     hover:bg-[#1f2233] hover:scale-105 transition-all duration-300"
           >
             <span className="relative z-10">💬 Chat</span>
-
-            {/* subtle hover glow */}
             <span
               className="absolute inset-0 rounded-full
     bg-white/5 blur-lg opacity-0 group-hover:opacity-100 transition"
