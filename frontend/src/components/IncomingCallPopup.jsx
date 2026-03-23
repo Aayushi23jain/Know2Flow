@@ -6,7 +6,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
-  getDoc
+  // getDoc
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 export default function IncomingCallPopup() {
   const [incomingCall, setIncomingCall] = useState(null);
   const [callerName, setCallerName] = useState("Unknown");
+  
   const [callerPhoto, setCallerPhoto] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -26,9 +27,14 @@ export default function IncomingCallPopup() {
     const unsubscribeAuth = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
     });
+    console.log("Current user:", currentUser);
 
     return () => unsubscribeAuth();
   }, [auth]);
+
+  useEffect(() => {
+  console.log("Current user:", currentUser);
+}, [currentUser]);
 
   // ✅ Listen for incoming calls
   useEffect(() => {
@@ -49,6 +55,7 @@ export default function IncomingCallPopup() {
 
       const docSnap = snapshot.docs[0];
       const callData = { id: docSnap.id, ...docSnap.data() };
+      console.log("CALL DATA:", callData);
 
       // 🔴 AUTO REMOVE POPUP IF CALL CANCELLED OR REJECTED
       if (
@@ -64,19 +71,9 @@ export default function IncomingCallPopup() {
         setIncomingCall(callData);
 
         // make sure caller id exists
-if (callData.from) {
-  const userRef = doc(db, "users", callData.from);
-  const userSnap = await getDoc(userRef);
-
-  if (userSnap.exists()) {
-    const data = userSnap.data();
-    setCallerName(data.name ? data.name : "Unknown");
-    setCallerPhoto(data.photoURL ? data.photoURL : null);
-  } else {
-    setCallerName("Unknown");
-    setCallerPhoto(null);
-  }
-}
+        console.log("CALL DATA:", callData);
+setCallerName(callData.callerName || "Unknown");
+setCallerPhoto(callData.callerPhoto || null);
       }
     });
 
@@ -107,7 +104,7 @@ if (callData.from) {
   };
 
   if (!incomingCall) return null;
-
+  
   return (
     <div className="fixed bottom-6 right-6 bg-gray-900 p-6 rounded-xl text-white z-50 shadow-xl w-80">
       <div className="flex items-center gap-3">

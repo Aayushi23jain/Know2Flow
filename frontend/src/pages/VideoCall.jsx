@@ -3,6 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { doc, onSnapshot, updateDoc, getDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
+import { io } from "socket.io-client";
+
+
 
 let AgoraRTC = null;
 
@@ -14,19 +17,89 @@ export default function VideoCall() {
   const remoteRef = useRef(null);
   const clientRef = useRef(null);
   const localTracksRef = useRef(null);
-
+  const lastTextRef = useRef("");
+const [remoteUid, setRemoteUid] = useState(null);
+  const [joined, setJoined] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
+  const [captions, setCaptions] = useState("");
+  const [listening, setListening] = useState(false);
+const auth = getAuth();
 
+
+  const currentUser = auth.currentUser;
+  const myName = currentUser?.displayName || "User"; // Now it's defined globally for this component
+const socketRef = useRef(null);
   const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
+// VideoCall.jsx
+useEffect(() => {
+  if (!channelName) return;
 
+  const socket = io("http://localhost:5000", { withCredentials: true });
+  socketRef.current = socket;
+
+  socket.on("connect", () => {
+    console.log("✅ Socket Connected:", socket.id);
+    socket.emit("join-channel", channelName); 
+  });
+
+  // Listener logic
+  const handleReceive = (data) => {
+    const isMe = data.senderId === socket.id;
+    const name = isMe ? "You" : data.userName;
+    setCaptions(`${name}: ${data.text}`);
+  };
+
+  socket.on("caption-receive", handleReceive);
+
+  return () => {
+    // CRITICAL: Clean up the specific listener and the socket
+    socket.off("caption-receive", handleReceive);
+    socket.disconnect();
+    socketRef.current = null;
+  };
+}, [channelName]); // Only re-run if channelName changes
+useEffect(() => {
+  if (!channelName) return;
+
+  // ONE connection, not two!
+  const socket = io("http://localhost:5000", { withCredentials: true });
+  socketRef.current = socket;
+
+  socket.on("connect", () => {
+    console.log("✅ Single Socket Connected:", socket.id);
+    socket.emit("join-channel", channelName); 
+  });
+
+  const handleReceive = (data) => {
+    // Check if the sender is NOT me
+    // We check against the current socket's actual ID
+    if (data.senderId === socket.id) {
+      console.log("☁️ Ignoring my own reflection");
+      return; 
+    }
+
+    console.log("📩 Received from partner:", data);
+    setCaptions(`${data.userName}: ${data.text}`);
+
+    const hideTimer = setTimeout(() => {
+      setCaptions("");
+    }, 4000);
+  };
+
+  socket.on("caption-receive", handleReceive);
+
+  return () => {
+    socket.off("caption-receive", handleReceive);
+    socket.disconnect();
+    socketRef.current = null;
+  };
+}, [channelName]); // Keep this as the only dependency
   /* ---------------- CALL TIMER ---------------- */
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCallDuration((prev) => prev + 1);
-    }, 1000);
+    const timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
     return () => clearInterval(timer);
   }, []);
 
@@ -63,31 +136,89 @@ export default function VideoCall() {
         localTracksRef.current[0]?.close();
         localTracksRef.current[1]?.close();
       }
-
       if (clientRef.current) {
         await clientRef.current.leave();
+        setJoined(false);
       }
 
       const callDocRef = doc(db, "calls", callId);
       const callSnap = await getDoc(callDocRef);
       const data = callSnap.data();
-
       const auth = getAuth();
       const currentUserId = auth.currentUser.uid;
-
-      const otherUserId =
-        data.from === currentUserId
-          ? data.to
-          : data.from;
-
+      const otherUserId = data.from === currentUserId ? data.to : data.from;
+// const myName = currentUser?.displayName || "User";
       await updateDoc(callDocRef, { status: "ended" });
-
       navigate(`/profile/${otherUserId}`);
     } catch (err) {
       console.error("Error ending call:", err);
     }
   };
 
+  /* ---------------- UPDATED SPEECH RECOGNITION ---------------- */
+useEffect(() => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition || !joined) return;
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  
+  // Use a ref-like variable to track the last sent string within this effect
+  let lastText = ""; 
+
+  recognition.onstart = () => {
+    setListening(true);
+    console.log("Captions active");
+  };
+
+
+
+// Inside your Speech Recognition useEffect
+recognition.onresult = (event) => {
+  const latestResultIndex = event.results.length - 1;
+  const transcript = event.results[latestResultIndex][0].transcript.trim();
+  
+  
+
+  // Use the REF here instead of a local variable
+  if (transcript !== lastTextRef.current && transcript !== "") {
+    lastTextRef.current= transcript; // Update the ref
+    
+    if (socketRef.current?.connected) {
+      console.log("📤 Sending to Server:", transcript);
+      socketRef.current.emit("caption-send", {
+        channelName: channelName, // The User1_User2 string
+        text: transcript,
+        userName: myName
+      });
+    }
+  }
+};
+
+  recognition.onerror = (event) => {
+    console.error("Speech Error:", event.error);
+  };
+
+  recognition.onend = () => {
+    setListening(false);
+    // Restart logic: as long as the call is active, keep listening
+    if (joined) { 
+      try {
+        recognition.start();
+      } catch (e) {
+        console.warn("Recognition restart attempt failed:", e);
+      }
+    }
+  };
+
+  recognition.start();
+
+  return () => {
+    recognition.onend = null; // Important: prevent restart loop on unmount
+    recognition.stop();
+  };
+}, [joined, channelName,myName]);
   /* ---------------- INITIALIZE CALL ---------------- */
   useEffect(() => {
     if (!APP_ID || !channelName) {
@@ -95,34 +226,24 @@ export default function VideoCall() {
       return;
     }
 
-    let isMounted = true;
     let client;
-
     const initializeCall = async () => {
       try {
         const auth = getAuth();
         const currentUser = auth.currentUser;
-
-        if (!currentUser) {
-          throw new Error("User not authenticated");
-        }
+        if (!currentUser) throw new Error("User not authenticated");
 
         const uid = Number(
-          currentUser.uid
-            .split("")
-            .reduce((acc, c) => acc + c.charCodeAt(0), 0)
+          currentUser.uid.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0)
         );
 
         if (!AgoraRTC) {
           const module = await import("agora-rtc-sdk-ng");
           AgoraRTC = module.default;
         }
-
         if (clientRef.current) return;
 
-        client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
-        await client.enableDualStream();
-        client.setClientRole("host");
+        client = AgoraRTC.createClient({ mode: "rtc", codec: "h264" });
         clientRef.current = client;
 
         const response = await fetch(
@@ -130,66 +251,44 @@ export default function VideoCall() {
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              channelName,
-              uid,
-            }),
+            body: JSON.stringify({ channelName, uid }),
+          }
+        );
+        const { token } = await response.json();
+
+        await client.join(APP_ID, channelName, token, uid);
+
+        const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
+          {
+            encoderConfig: "480p_1",
+            AEC: true,
+            AGC: true,
+            ANS: true,
+          },
+          {
+            encoderConfig: {
+              width: 1280,
+              height: 720,
+              frameRate: 30,
+              bitrateMin: 1200,
+              bitrateMax: 2500,
+            },
           }
         );
 
-        const { token } = await response.json();
-
-        const joinedUid = await client.join(
-          APP_ID,
-          channelName,
-          token,
-          uid
-        );
-
-        console.log("Joined with UID:", joinedUid);
-
-        client.on("user-published", async (user, mediaType) => {
-  await client.subscribe(user, mediaType);
-
-  if (mediaType === "video") {
-    user.videoTrack.play(remoteRef.current);
-  }
-
-  if (mediaType === "audio") {
-    user.audioTrack.play();
-  }
-});
-
-
-       const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
-  {
-    encoderConfig: "music_standard",
-    AEC: true,
-    AGC: true,
-    ANS: true,
-  },
-  {
-    encoderConfig: {
-      width: 640,
-      height: 480,
-      frameRate: 24,
-      bitrateMin: 600,
-      bitrateMax: 1500,
-    },
-  }
-);
-
         localTracksRef.current = tracks;
-
         await client.publish(tracks);
-
         tracks[1].play(localRef.current);
+        setJoined(true); // mark call ready
 
         client.on("user-published", async (user, mediaType) => {
   await client.subscribe(user, mediaType);
+
+  // ❗ VERY IMPORTANT
+  if (user.uid === client.uid) return;
 
   if (mediaType === "video" && user.videoTrack) {
-    remoteRef.current.innerHTML = ""; // clear old
+    remoteRef.current.innerHTML = "";
     user.videoTrack.play(remoteRef.current);
   }
 
@@ -198,14 +297,9 @@ export default function VideoCall() {
   }
 });
 
-
-        client.on("user-unpublished", (user, mediaType) => {
-  if (mediaType === "video") {
-    remoteRef.current.innerHTML = "";
-  }
-});
-
-
+        client.on("user-unpublished", (user) => {
+          if (user.videoTrack) remoteRef.current.innerHTML = "";
+        });
       } catch (err) {
         console.error("Error initializing call:", err);
         setError(err.message || "Failed to start video call");
@@ -215,15 +309,11 @@ export default function VideoCall() {
     initializeCall();
 
     return async () => {
-      if (!isMounted) return;
-      isMounted = false;
-
       try {
         if (localTracksRef.current) {
           localTracksRef.current[0]?.close();
           localTracksRef.current[1]?.close();
         }
-
         if (clientRef.current) {
           await clientRef.current.leave();
           clientRef.current.removeAllListeners();
@@ -238,111 +328,94 @@ export default function VideoCall() {
   /* ---------------- FIREBASE LISTENER ---------------- */
   useEffect(() => {
     if (!callId) return;
-
     const callDocRef = doc(db, "calls", callId);
     const unsubscribe = onSnapshot(callDocRef, (docSnap) => {
       const data = docSnap.data();
-
       if (data?.status === "ended") {
         const auth = getAuth();
         const currentUserId = auth.currentUser.uid;
-
-        const otherUserId =
-          data.from === currentUserId
-            ? data.to
-            : data.from;
-
+        const otherUserId = data.from === currentUserId ? data.to : data.from;
         navigate(`/profile/${otherUserId}`);
       }
     });
-
     return () => unsubscribe();
   }, [callId]);
 
   return (
-  <div className="h-screen w-screen bg-gradient-to-br from-black via-gray-900 to-black text-white relative overflow-hidden">
+    <div className="h-screen w-screen bg-gradient-to-br from-black via-gray-900 to-black text-white relative overflow-hidden">
+      {/* Remote Video */}
+      <div className="absolute inset-0">
+        {error ? (
+          <div className="h-full flex items-center justify-center text-red-400 text-lg font-semibold">
+            {error}
+          </div>
+        ) : (
+          <div
+            ref={remoteRef}
+            className="w-full h-full bg-black object-cover"
+          />
+        )}
+      </div>
 
-    {/* Remote Video */}
-    <div className="absolute inset-0">
-      {error ? (
-        <div className="h-full flex items-center justify-center text-red-400 text-lg font-semibold">
-          {error}
+      {/* Top Bar */}
+      <div className="absolute top-0 w-full px-8 py-5 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex flex-col">
+          <span className="text-lg font-semibold tracking-wide">Know2Flow</span>
+          <span className="text-xs text-gray-400">Secure Video Call</span>
         </div>
-      ) : (
-        <div
-          ref={remoteRef}
-          className="w-full h-full bg-black object-cover"
-        />
-      )}
-    </div>
-
-    {/* Top Bar */}
-    <div className="absolute top-0 w-full px-8 py-5 flex justify-between items-center 
-      bg-gradient-to-b from-black/80 to-transparent backdrop-blur-md">
-
-      <div className="flex flex-col">
-        <span className="text-lg font-semibold tracking-wide">
-          Know2Flow
-        </span>
-        <span className="text-xs text-gray-400">
-          Secure Video Call
-        </span>
+        <div className="bg-white/10 px-4 py-1 rounded-full text-sm font-mono tracking-wider">
+          {formatTime(callDuration)}
+        </div>
       </div>
 
-      <div className="bg-white/10 px-4 py-1 rounded-full text-sm font-mono tracking-wider">
-        {formatTime(callDuration)}
+      {/* Status */}
+      <div className="absolute top-20 left-8 px-4 py-2 bg-black/50 rounded-lg text-sm">
+        {joined ? "✅ Joined" : "❌ Not Joined"} |{" "}
+        {listening ? "🎙️ Listening" : "🛑 Not Listening"}
+      </div>
+
+      {/* Local Video (Picture-in-Picture) */}
+      <div className="absolute bottom-32 right-8 w-44 h-64 bg-gray-900/60 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-300 hover:scale-105">
+        <div ref={localRef} className="w-full h-full object-cover" />
+      </div>
+{/* Captions Box */}
+<div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none">
+  {captions && (
+    <div className="bg-black/80 px-6 py-3 rounded-xl border border-white/20 shadow-2xl animate-pulse">
+       <p className="text-white text-lg font-medium">{captions}</p>
+    </div>
+  )}
+</div>
+
+      {/* Bottom Controls */}
+      <div className="absolute bottom-0 w-full py-8 flex justify-center items-center gap-8 bg-gradient-to-t from-black/90 to-transparent">
+        <button
+          onClick={toggleMic}
+          className={`w-16 h-16 rounded-full flex items-center justify-center text-xl transition-all duration-300 shadow-lg ${
+            micOn
+              ? "bg-white/10 hover:bg-white/20"
+              : "bg-red-600 hover:bg-red-700 scale-110"
+          }`}
+        >
+          🎤
+        </button>
+        <button
+          onClick={toggleCamera}
+          className={`w-16 h-16 rounded-full flex items-center justify-center text-xl transition-all duration-300 shadow-lg ${
+            cameraOn
+              ? "bg-white/10 hover:bg-white/20"
+              : "bg-red-600 hover:bg-red-700 scale-110"
+          }`}
+        >
+          📷
+        </button>
+        <button
+          onClick={endCall}
+          className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center text-2xl shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95"
+        >
+          ❌
+        </button>
       </div>
     </div>
-
-    {/* Local Video (Picture-in-Picture) */}
-    <div className="absolute bottom-32 right-8 w-44 h-64 
-      bg-gray-900/60 backdrop-blur-lg 
-      rounded-2xl overflow-hidden border border-white/10 
-      shadow-2xl transition-all duration-300 hover:scale-105">
-
-      <div ref={localRef} className="w-full h-full object-cover" />
-    </div>
-
-    {/* Bottom Controls */}
-    <div className="absolute bottom-0 w-full py-8 flex justify-center items-center gap-8
-      bg-gradient-to-t from-black/90 to-transparent backdrop-blur-md">
-
-      {/* Mic Button */}
-      <button
-        onClick={toggleMic}
-        className={`w-16 h-16 rounded-full flex items-center justify-center 
-        text-xl transition-all duration-300 shadow-lg
-        ${micOn
-          ? "bg-white/10 hover:bg-white/20"
-          : "bg-red-600 hover:bg-red-700 scale-110"
-        }`}
-      >
-        🎤
-      </button>
-
-      {/* Camera Button */}
-      <button
-        onClick={toggleCamera}
-        className={`w-16 h-16 rounded-full flex items-center justify-center 
-        text-xl transition-all duration-300 shadow-lg
-        ${cameraOn
-          ? "bg-white/10 hover:bg-white/20"
-          : "bg-red-600 hover:bg-red-700 scale-110"
-        }`}
-      >
-        📷
-      </button>
-
-      {/* End Call Button */}
-      <button
-        onClick={endCall}
-        className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-700 
-        flex items-center justify-center text-2xl 
-        shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95"
-      >
-        ❌
-      </button>
-    </div>
-  </div>
-);
+  );
 }

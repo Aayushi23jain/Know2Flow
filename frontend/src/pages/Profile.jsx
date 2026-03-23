@@ -1,15 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+// import {
+//   onSnapshot,
+//   doc,
+//   updateDoc,
+// } from "firebase/firestore";
 import {
-  addDoc,
-  collection,
-  serverTimestamp,
   onSnapshot,
   doc,
   updateDoc,
+  getDoc,
+  // setDoc,
+  arrayUnion,
+  arrayRemove,
+
 } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
+import { startCall } from "../utils/callService";
 
 export default function Profile() {
   const { userId } = useParams();
@@ -21,70 +29,315 @@ export default function Profile() {
   const [error, setError] = useState(null);
   const [calling, setCalling] = useState(false);
   const [callDocId, setCallDocId] = useState(null);
+  const [requestSent, setRequestSent] = useState(false);
+  const [waitingEnd, setWaitingEnd] = useState(false);
+  const [hasReceivedRequest, setHasReceivedRequest] = useState(false);
+const [sessionActive, setSessionActive] = useState(false);
   const handleVideoCall = async () => {
-    try {
-      const currentUser = getAuth().currentUser;
+    console.log("In video call handle");
+  try {
+    const currentUser = getAuth().currentUser;
 
-      if (!currentUser) {
-        alert("You must be logged in to make a call");
-        return;
-      }
-
-      if (currentUser.uid === userId) {
-        alert("You cannot call yourself");
-        return;
-      }
-
-      const channelName =
-        currentUser.uid < userId
-          ? `${currentUser.uid}_${userId}`
-          : `${userId}_${currentUser.uid}`;
-
-      const callRef = await addDoc(collection(db, "calls"), {
-        from: currentUser.uid,
-        to: userId,
-        channelName,
-        status: "ringing",
-        createdAt: serverTimestamp(),
-      });
-      setCallDocId(callRef.id);
-      setCalling(true);
-
-      const unsubscribe = onSnapshot(callRef, (docSnap) => {
-        const data = docSnap.data();
-
-        if (data?.status === "accepted") {
-          setCalling(false);
-          navigate(`/video-call/${channelName}/${callRef.id}`);
-          unsubscribe();
-        }
-
-        if (data?.status === "rejected") {
-          setCalling(false);
-          alert("Call rejected");
-          unsubscribe();
-        }
-      });
-    } catch (error) {
-      alert("Error initiating call: " + error.message);
+    if (!currentUser) {
+      alert("You must be logged in to make a call");
+      return;
     }
-  };
+
+    if (currentUser.uid === userId) {
+      alert("You cannot call yourself");
+      return;
+    }
+
+    const callId = await startCall(
+      currentUser.uid,
+      userId,
+      currentUser.displayName || "User",
+      currentUser.photoURL || null
+    );
+
+    setCallDocId(callId);
+    setCalling(true);
+
+    const callRef = doc(db, "calls", callId);
+
+    const unsubscribe = onSnapshot(callRef, (docSnap) => {
+      const data = docSnap.data();
+
+      if (data?.status === "accepted") {
+        setCalling(false);
+        navigate(`/video-call/${data.channelName}/${callId}`);
+        unsubscribe();
+      }
+
+      if (data?.status === "rejected") {
+        setCalling(false);
+        alert("Call rejected");
+        unsubscribe();
+      }
+    });
+
+  } catch (error) {
+    alert("Error initiating call: " + error.message);
+  }
+};
 
   useEffect(() => {
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    fetch(`http://localhost:5000/user/${userId}`)
-      .then((r) => {
-        if (!r.ok) throw new Error("User not found");
-        return r.json();
-      })
-      .then((data) => {
-        setUser(data);
-      })
-      .catch((e) => setError(e.message || "Failed to load"))
-      .finally(() => setLoading(false));
-  }, [userId]);
+  const auth = getAuth();
+  let unsubscribeFirestore = null; 
+
+  const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+    if (!currentUser) return;
+
+    const currentRef = doc(db, "users", currentUser.uid);
+
+    // ✅ START onSnapshot
+    unsubscribeFirestore = onSnapshot(currentRef, (snap) => {
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+
+      // 👉 declare FIRST
+      const sentRequests = data.sentRequests || [];
+      const receivedRequests = data.receivedRequests || [];
+      const activeSessions = data.activeSessions || [];
+      const sessionEndCount = data.sessionEndCount || {};
+
+      // 👉 reset
+      setSessionActive(false);
+      setHasReceivedRequest(false);
+      setRequestSent(false);
+      setWaitingEnd(false);
+
+      // 👉 logic
+      if (activeSessions.includes(userId)) {
+        setSessionActive(true);
+
+        const sessionEndInitiator = data.sessionEndInitiator || {};
+
+if (activeSessions.includes(userId)) {
+  setSessionActive(true);
+
+  // ✅ ONLY first user sees waiting
+  if (
+    sessionEndCount[userId] === 1 &&
+    sessionEndInitiator[userId] === currentUser.uid
+  ) {
+    setWaitingEnd(true);
+  }
+}
+      } else if (receivedRequests.includes(userId)) {
+        setHasReceivedRequest(true);
+      } else if (sentRequests.includes(userId)) {
+        setRequestSent(true);
+      }
+    }); // ✅ CLOSE onSnapshot HERE
+  });
+
+  fetch(`http://localhost:5000/user/${userId}`)
+    .then((r) => {
+      if (!r.ok) throw new Error("User not found");
+      return r.json();
+    })
+    .then((data) => setUser(data))
+    .catch((e) => setError(e.message || "Failed to load"))
+    .finally(() => setLoading(false));
+
+  return () => unsubscribeAuth();
+
+}, [userId]);
+
+
+  const handleSendRequest = async () => {
+  try {
+    const currentUser = getAuth().currentUser;
+
+    if (!currentUser) {
+      alert("You must be logged in");
+      return;
+    }
+
+    if (currentUser.uid === userId) {
+      alert("You cannot send request to yourself");
+      return;
+    }
+
+    const senderRef = doc(db, "users", currentUser.uid);
+    const receiverRef = doc(db, "users", userId);
+
+    const senderSnap = await getDoc(senderRef);
+
+    if (!senderSnap.exists()) {
+      alert("Sender data not found");
+      return;
+    }
+
+    const senderData = senderSnap.data();
+
+    const sentCount = senderData.sentRequestCount || 0;
+    const sentRequests = senderData.sentRequests || [];
+
+    // 🚫 Already sent to this user
+    if (sentRequests.includes(userId)) {
+      setRequestSent(true);
+      alert("Request already sent");
+      return;
+    }
+
+    // 🚫 Only 1 request allowed
+    if (sentCount >= 1) {
+      alert("You can send only one request at a time");
+      return;
+    }
+
+    // ✅ Add to receiver
+    await updateDoc(receiverRef, {
+      receivedRequests: arrayUnion(currentUser.uid),
+    });
+
+    // ✅ Update sender
+    await updateDoc(senderRef, {
+      sentRequests: arrayUnion(userId),
+      sentRequestCount: sentCount + 1,
+    });
+
+    setRequestSent(true);
+
+    alert("Request sent successfully!");
+
+  } catch (error) {
+    console.error(error);
+    alert("Error sending request: " + error.message);
+  }
+};
+
+const handleAcceptRequest = async () => {
+  try {
+    const currentUser = getAuth().currentUser;
+
+    if (!currentUser) {
+      alert("Login required");
+      return;
+    }
+
+    const receiverRef = doc(db, "users", currentUser.uid); // B
+    const senderRef = doc(db, "users", userId); // A
+
+    const receiverSnap = await getDoc(receiverRef);
+    const senderSnap = await getDoc(senderRef);
+
+    if (!receiverSnap.exists() || !senderSnap.exists()) {
+      alert("User data not found");
+      return;
+    }
+
+    const receiverData = receiverSnap.data();
+    const senderData = senderSnap.data();
+
+    const receiverTokens = receiverData.tokens || 0;
+    const senderTokens = senderData.tokens || 0;
+
+    if (receiverTokens < 1 || senderTokens < 1) {
+      alert("Not enough tokens");
+      return;
+    }
+
+    // ✅ Update receiver (B)
+    await updateDoc(receiverRef, {
+      tokens: receiverTokens - 1,
+      receivedRequests: arrayRemove(userId),
+      activeSessions: arrayUnion(userId),
+    });
+
+    // ✅ Update sender (A)
+    await updateDoc(senderRef, {
+      tokens: senderTokens - 1,
+      sentRequests: arrayRemove(currentUser.uid),
+      activeSessions: arrayUnion(currentUser.uid),
+      // ❌ DO NOT reduce sentRequestCount
+    });
+
+    // UI update
+    setSessionActive(true);
+    setHasReceivedRequest(false);
+    setRequestSent(false);
+
+    alert("Session started!");
+
+  } catch (error) {
+    console.error(error);
+    alert("Error: " + error.message);
+  }
+};
+
+const handleEndSession = async () => {
+  try {
+    const currentUser = getAuth().currentUser;
+    if (!currentUser) return;
+
+    const currentRef = doc(db, "users", currentUser.uid);
+    const otherRef = doc(db, "users", userId);
+
+    const currentSnap = await getDoc(currentRef);
+    const otherSnap = await getDoc(otherRef);
+
+    const currentData = currentSnap.data();
+    const otherData = otherSnap.data();
+
+    const currentEnd = currentData.sessionEndCount || {};
+    const otherEnd = otherData.sessionEndCount || {};
+
+    const currentInitiator = currentData.sessionEndInitiator || {};
+    const otherInitiator = otherData.sessionEndInitiator || {};
+
+    const currentCount = currentEnd[userId] || 0;
+
+    // ✅ FIRST CLICK
+    if (currentCount === 0) {
+      await updateDoc(currentRef, {
+        [`sessionEndCount.${userId}`]: 1,
+        [`sessionEndInitiator.${userId}`]: currentUser.uid,
+      });
+
+      await updateDoc(otherRef, {
+        [`sessionEndCount.${currentUser.uid}`]: 1,
+        [`sessionEndInitiator.${currentUser.uid}`]: currentUser.uid,
+      });
+
+      setWaitingEnd(true);
+      return;
+    }
+
+    // ✅ SECOND CLICK → END SESSION
+    const currentTokens = currentData.tokens || 0;
+    const otherTokens = otherData.tokens || 0;
+
+    await updateDoc(currentRef, {
+      tokens: currentTokens + 1,
+      activeSessions: arrayRemove(userId),
+      [`sessionEndCount.${userId}`]: 0,
+      [`sessionEndInitiator.${userId}`]: "",
+    });
+
+    await updateDoc(otherRef, {
+      tokens: otherTokens + 1,
+      activeSessions: arrayRemove(currentUser.uid),
+      [`sessionEndCount.${currentUser.uid}`]: 0,
+      [`sessionEndInitiator.${currentUser.uid}`]: "",
+    });
+
+    setSessionActive(false);
+    setWaitingEnd(false);
+
+    alert("Session ended & tokens returned!");
+
+  } catch (error) {
+    console.error(error);
+    alert("Error ending session");
+  }
+};
 
   const feedbacks = [
     {
@@ -264,6 +517,7 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
           {/* ACTION BUTTONS – ALWAYS VISIBLE */}
           <div className="mt-8 flex justify-between items-center">
             <div className="flex gap-4">
+
               <button
                 className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15
@@ -288,6 +542,39 @@ transition"
               >
                 Video Call
               </button>
+              {sessionActive ? (
+  <button
+    className="px-5 py-2 rounded-full
+    bg-red-600/20 border border-red-400 text-red-300
+    hover:bg-red-600/30 transition"
+    onClick={handleEndSession}
+    disabled={waitingEnd}
+  >
+    {waitingEnd ? "Waiting..." : "End Session"}
+  </button>
+) : hasReceivedRequest ? (
+  <button
+    className="px-5 py-2 rounded-full
+    bg-green-600/20 border border-green-400 text-green-300
+    hover:bg-green-600/30 transition"
+    onClick={handleAcceptRequest}
+  >
+    Accept Request
+  </button>
+) : (
+  <button
+    className={`px-5 py-2 rounded-full border transition
+    ${
+      requestSent
+        ? "bg-gray-700 border-gray-500 text-gray-300 cursor-not-allowed"
+        : "bg-gradient-to-r from-yellow-400/15 to-orange-400/15 border-yellow-400/30 text-white-300 hover:from-yellow-400/25 hover:to-orange-400/25 hover:text-yellow-200"
+    }`}
+    onClick={handleSendRequest}
+    disabled={requestSent}
+  >
+    {requestSent ? "Requested" : "Send Request"}
+  </button>
+)}
               <button
                 className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15

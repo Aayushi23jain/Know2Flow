@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
+  updateProfile,
 } from "firebase/auth";
 
 export default function Signup() {
@@ -40,6 +41,9 @@ export default function Signup() {
       );
       const user = userCredential.user;
 
+      // Set displayName in Firebase Auth
+      await updateProfile(user, { displayName: formData.name });
+
       await sendEmailVerification(user, {
         url: "http://localhost:5173/login",
       });
@@ -65,49 +69,56 @@ export default function Signup() {
         setLoading(false);
         return;
       }
-
-      
     } catch (error) {
       console.error("Signup error:", error);
       let msg = "Something went wrong ❌";
 
-  if (error.code === "auth/weak-password") {
-    msg = "Password must be at least 6 characters long.";
-  } else if (error.code === "auth/email-already-in-use") {
-    msg = "This email is already registered.";
-  } else if (error.code === "auth/invalid-email") {
-    msg = "Please enter a valid email address.";
-  } else if (error.message) {
-    msg = error.message;
-  }
+      if (error.code === "auth/weak-password") {
+        msg = "Password must be at least 6 characters long.";
+      } else if (error.code === "auth/email-already-in-use") {
+        msg = "This email is already registered.";
+      } else if (error.code === "auth/invalid-email") {
+        msg = "Please enter a valid email address.";
+      } else if (error.message) {
+        msg = error.message;
+      }
 
-  setMessage(msg);
-  setLoading(false);
+      setMessage(msg);
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden text-white flex items-center justify-center py-12 px-4
-      bg-[radial-gradient(ellipse_at_top_left,_rgba(255,186,73,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(255,215,0,0.05),_transparent_55%),linear-gradient(135deg,#0b0b10,#111421,#141a2b,#0a0c14)]">
-      
+    <div
+      className="min-h-screen relative overflow-hidden text-white flex items-center justify-center py-12 px-4
+      bg-[radial-gradient(ellipse_at_top_left,_rgba(255,186,73,0.08),_transparent_50%),radial-gradient(ellipse_at_bottom_right,_rgba(255,215,0,0.05),_transparent_55%),linear-gradient(135deg,#0b0b10,#111421,#141a2b,#0a0c14)]"
+    >
       {/* Ambient background glow */}
       <div className="absolute top-[-120px] left-[-120px] w-[420px] h-[420px] bg-orange-400/10 rounded-full blur-[140px]" />
       <div className="absolute bottom-[-120px] right-[-120px] w-[420px] h-[420px] bg-yellow-400/10 rounded-full blur-[140px]" />
 
-      <div className="relative z-10 w-full max-w-2xl bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10] 
-        border border-white/10 rounded-2xl p-8 md:p-12 shadow-[0_40px_90px_rgba(0,0,0,0.95)] backdrop-blur-sm">
-        
+      <div
+        className="relative z-10 w-full max-w-2xl bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10] 
+        border border-white/10 rounded-2xl p-8 md:p-12 shadow-[0_40px_90px_rgba(0,0,0,0.95)] backdrop-blur-sm"
+      >
         <div className="text-center mb-10">
           <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white">
             Join Know2Flow
           </h2>
-          <p className="text-gray-400 mt-2 italic text-sm">Swap Skills, No Bills</p>
+          <p className="text-gray-400 mt-2 italic text-sm">
+            Swap Skills, No Bills
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <form
+          onSubmit={handleSubmit}
+          className="grid grid-cols-1 md:grid-cols-2 gap-5"
+        >
           {/* Name */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">FULL NAME</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              FULL NAME
+            </label>
             <input
               type="text"
               name="name"
@@ -121,7 +132,9 @@ export default function Signup() {
 
           {/* Email */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">EMAIL ADDRESS</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              EMAIL ADDRESS
+            </label>
             <input
               type="email"
               name="email"
@@ -135,7 +148,9 @@ export default function Signup() {
 
           {/* Password */}
           <div className="flex flex-col gap-1 relative">
-            <label className="text-xs font-semibold text-gray-400 ml-1">PASSWORD</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              PASSWORD
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -157,7 +172,9 @@ export default function Signup() {
 
           {/* Language */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">PRIMARY LANGUAGE</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              PRIMARY LANGUAGE
+            </label>
             <input
               type="text"
               name="language"
@@ -171,7 +188,9 @@ export default function Signup() {
 
           {/* Skills to Teach */}
           <div className="md:col-span-2 flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">SKILLS YOU CAN TEACH</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              SKILLS YOU CAN TEACH
+            </label>
             <input
               type="text"
               name="teachSkills"
@@ -185,7 +204,9 @@ export default function Signup() {
 
           {/* Skills to Learn */}
           <div className="md:col-span-2 flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">SKILLS YOU WANT TO LEARN</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              SKILLS YOU WANT TO LEARN
+            </label>
             <input
               type="text"
               name="learnSkills"
@@ -199,7 +220,9 @@ export default function Signup() {
 
           {/* Experience Level */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">EXPERIENCE</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              EXPERIENCE
+            </label>
             <select
               name="experienceLevel"
               value={formData.experienceLevel}
@@ -216,7 +239,9 @@ export default function Signup() {
 
           {/* Country */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-400 ml-1">COUNTRY</label>
+            <label className="text-xs font-semibold text-gray-400 ml-1">
+              COUNTRY
+            </label>
             <input
               type="text"
               name="country"
@@ -233,7 +258,11 @@ export default function Signup() {
             disabled={loading}
             className={`md:col-span-2 mt-4 flex items-center justify-center gap-2 
               bg-gradient-to-r from-yellow-400 to-orange-500 text-black font-bold py-4 rounded-xl shadow-lg transition
-              ${loading ? "opacity-70 cursor-not-allowed" : "hover:scale-[1.02] hover:shadow-orange-500/20"}`}
+              ${
+                loading
+                  ? "opacity-70 cursor-not-allowed"
+                  : "hover:scale-[1.02] hover:shadow-orange-500/20"
+              }`}
           >
             {loading ? (
               <>
