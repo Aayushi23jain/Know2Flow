@@ -126,9 +126,23 @@ useEffect(() => {
 
           <div className="flex items-center gap-6">
             <nav className="hidden md:flex gap-6 text-sm text-gray-300">
-              <button onClick={() => navigate("/challenge")} className="hover:text-white transition-colors">Challenge</button>
-              <button onClick={() => navigate("/summary")} className="hover:text-white transition-colors">Summary</button>
-              <button onClick={() => navigate(`/leaderboard/${userId}`)} className="hover:text-white transition-colors">LeaderBoard</button>
+              <button
+                onClick={() => navigate("/challenge")}
+                className="hover:text-white transition-colors"
+              >
+                Challenge
+              </button>
+
+              {/* <a href="/summary" className="hover:text-white">
+                Summary
+              </a> */}
+              {/*  <a href="/leaderboard" className="hover:text-white">LeaderBoard</a> */}
+              <button
+                onClick={() => navigate(`/leaderboard/${userId}`)}
+                className="hover:text-white transition-colors"
+              >
+                LeaderBoard
+              </button>
             </nav>
             <div className="flex items-center gap-1 text-red-400">
               <span>🔥</span><span className="text-white">{user?.streak ?? 0}</span>
@@ -138,6 +152,7 @@ useEffect(() => {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-10">
+
         <div className="text-center flex flex-col items-center">
           <img src="/logo.png" alt="Logo" className="w-24 h-24 mb-4 object-contain" />
           <h1 className="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-white uppercase">
@@ -146,137 +161,253 @@ useEffect(() => {
           <p className="mt-4 text-gray-300 italic">Swap Skills, No Bills</p>
         </div>
 
-        {/* Profile Card */}
-        <div className="mt-10 relative rounded-2xl p-6 bg-gradient-to-br from-[#161a23] to-[#0b0c10] border border-white/10 shadow-2xl backdrop-blur-sm">
-          {loadingUser ? (
-            <div className="animate-pulse space-y-4">
-              <div className="w-20 h-20 rounded-full bg-gray-700" />
-              <div className="h-4 bg-gray-700 w-1/2 rounded" />
+
+
+  {/* PROFILE CARD (PROFILE.JSX STYLE) */}
+  <div
+    className="mt-10 relative rounded-2xl p-8
+    bg-gradient-to-br from-[#161a23] via-[#0f1117] to-[#0b0c10]
+    border border-white/10
+    shadow-[0_45px_110px_rgba(0,0,0,0.95)]
+    backdrop-blur"
+  >
+    {/* inner glow */}
+    <div className="absolute inset-0 rounded-2xl
+      bg-gradient-to-br from-yellow-400/5 via-transparent to-orange-400/5 pointer-events-none"
+    />
+
+    {loadingUser ? (
+      <div className="animate-pulse space-y-4">
+        <div className="w-20 h-20 rounded-full bg-gray-700" />
+        <div className="h-4 bg-gray-700 w-1/2 rounded" />
+      </div>
+    ) : user ? (
+      <>
+        {/* HEADER */}
+        <div className="relative flex items-center justify-between gap-6">
+          <div className="flex items-center gap-6">
+            <div className="w-20 h-20 rounded-full
+              bg-gradient-to-br from-yellow-400 to-orange-400
+              flex items-center justify-center text-black font-bold text-2xl">
+              {user.name?.[0]?.toUpperCase()}
             </div>
-          ) : user ? (
-            <div className="space-y-6">
-              <div className="flex items-center gap-5">
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-orange-500 to-yellow-500 flex items-center justify-center text-black font-bold text-3xl shadow-lg">
-                  {user.name?.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold">{user.name}</h2>
-                  <p className="text-gray-400 text-sm">{user.email}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-yellow-400 text-sm font-bold">Tokens: {user.tokens ?? 0}</span>
-                    <div className="flex text-yellow-500 ml-3">
-                      {[1, 2, 3, 4, 5].map((s) => (
-                        <span key={s} className={s <= Math.round(avgRating || 0) ? "opacity-100" : "opacity-30"}>★</span>
-                      ))}
-                    </div>
-                    {avgRating && <span className="text-xs text-gray-500">({avgRating})</span>}
-                  </div>
-                </div>
-                <img src="/medal.png" className="absolute top-6 right-6 w-16 h-16 opacity-80" alt="medal" />
-              </div>
 
-              {/* Skills Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Teach Skills</p>
-                  <div className="flex flex-wrap gap-2">
-                    {user.teachSkills?.map((s, i) => (
-                      <span key={i} className="bg-orange-500/10 text-orange-400 border border-orange-500/20 px-3 py-1 rounded-full text-xs">{s}</span>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">Learn Skills</p>
-                  <div className="flex flex-wrap gap-2">
-                    {user.learnSkills?.map((s, i) => (
-                      <span key={i} className="bg-blue-500/10 text-blue-400 border border-blue-500/20 px-3 py-1 rounded-full text-xs">{s}</span>
-                    ))}
-                  </div>
-                </div>
-              </div>
+            <div>
+              <h1 className="text-2xl font-bold">{user.name}</h1>
+              <p className="text-gray-400">{user.email}</p>
 
-              {/* Feedback Section */}
-              <div className="pt-6 border-t border-white/5">
-                <h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Reviews</h3>
-                {loadingFeedbacks ? (
-                  <p className="text-gray-600 text-sm italic">Loading reviews...</p>
-                ) : feedbacks.length === 0 ? (
-                  <p className="text-gray-600 text-sm italic">No reviews yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map((fb) => (
-                      <div key={fb.id} className="bg-white/5 p-4 rounded-xl border border-white/5">
-                        <div className="flex justify-between items-start">
-                          <span className="text-yellow-400 font-semibold text-sm">{fb.givenByName || "User"}</span>
-                          <div className="flex text-[10px] text-yellow-500">
-                            {Array(fb.rating).fill("★")}
-                          </div>
-                        </div>
-                        <p className="text-gray-300 text-sm mt-1">{fb.text}</p>
-                      </div>
-                    ))}
-                    {feedbacks.length > 3 && (
-                      <button 
-                        onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
-                        className="text-xs text-orange-400 hover:underline pt-2"
-                      >
-                        {showAllFeedbacks ? "Show Less" : `View ${feedbacks.length - 3} more reviews`}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
+              <div className="mt-3 flex flex-col gap-2">
+  <div className="flex items-center gap-2">
+    <div className="flex">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <span
+          key={s}
+          className={`text-lg ${
+            s <= Math.round(avgRating || 0)
+              ? "text-yellow-400"
+              : "text-gray-500"
+          }`}
+        >
+          ★
+        </span>
+      ))}
+    </div>
 
-              {/* Profile Actions */}
-              <div className="flex gap-3 pt-4">
-                {isOwner && (
-                  <button onClick={() => navigate(`/edit/${userId}`)} className="flex-1 bg-yellow-400 text-black py-2.5 rounded-xl font-bold hover:bg-yellow-500 transition">
-                    Edit Profile
-                  </button>
-                )}
-                <button 
-                  onClick={() => { localStorage.removeItem("userId"); window.location.href = "/login"; }}
-                  className="px-6 bg-white/5 hover:bg-red-500/20 hover:text-red-400 border border-white/10 py-2.5 rounded-xl transition text-sm"
-                >
-                  Logout
-                </button>
-              </div>
+    {avgRating && (
+      <span className="text-xs text-gray-400">({avgRating})</span>
+    )}
+  </div>
+
+  <span className="text-yellow-400 font-semibold">
+    Tokens: {user.tokens ?? 0}
+  </span>
+</div>
+
             </div>
+          </div>
+
+          {/* Medal */}
+          <img
+            src="/medal.png"
+            className="absolute top-8 right-8 w-24 h-24 opacity-90"
+            alt="medal"
+          />
+        </div>
+
+        {/* SKILLS */}
+        <div className="mt-8">
+          <h3 className="font-semibold text-gray-300">Teach Skills</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {user.teachSkills?.map((s, i) => (
+              <span key={i}
+                className="bg-gray-800/80 px-3 py-1 rounded-full text-sm">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-6">
+          <h3 className="font-semibold text-gray-300">Learn Skills</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {user.learnSkills?.map((s, i) => (
+              <span key={i}
+                className="bg-gray-800/80 px-3 py-1 rounded-full text-sm">
+                {s}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* FEEDBACK */}
+        <div className="mt-8">
+          <h3 className="font-semibold text-gray-300 mb-3">
+            Feedback Received
+          </h3>
+
+          {loadingFeedbacks ? (
+            <div className="text-gray-500 text-sm">Loading feedbacks...</div>
+          ) : feedbacks.length === 0 ? (
+            <div className="text-gray-500 text-sm">No feedbacks yet.</div>
           ) : (
-            <div className="text-center py-10">
-              <p className="text-gray-500">Profile not found.</p>
-              <button onClick={() => navigate("/signup")} className="text-orange-400 underline mt-2">Create Account</button>
+            <div className="space-y-4">
+              {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map((fb) => (
+                <div
+                  key={fb.id}
+                  className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <div className="font-semibold text-yellow-300">
+                      {fb.givenByName || "User"}
+                    </div>
+                    <div className="text-gray-200 mt-1">{fb.text}</div>
+                  </div>
+
+                  <div className="flex items-center gap-1 mt-2 sm:mt-0">
+                    {[1,2,3,4,5].map((star) => (
+                      <span key={star}
+                        className={`text-lg ${
+                          star <= fb.rating
+                            ? "text-yellow-400"
+                            : "text-gray-500"
+                        }`}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {feedbacks.length > 3 && (
+                <div className="flex justify-end mt-2">
+                  <span
+                    onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
+                    className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold"
+                  >
+                    {showAllFeedbacks
+                      ? "Show Less"
+                      : `+${feedbacks.length - 3} more`}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Global Action Buttons */}
-        <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
-          <button
-            onClick={() => navigate(`/matches/${userId}`)}
-            className="group relative bg-gradient-to-r from-yellow-400 to-orange-500 text-black px-10 py-4 rounded-full font-black uppercase tracking-tighter shadow-xl hover:scale-105 transition-all"
-          >
-            Match Skills
-            <div className="absolute inset-0 rounded-full bg-yellow-400 blur-lg opacity-0 group-hover:opacity-20 transition" />
-          </button>
+        {/* ACTION BUTTONS (PROFILE STYLE) */}
+        <div className="mt-8 flex justify-between items-center">
+          <div className="flex gap-4">
 
-          <div className="flex items-center gap-6">
+            {isOwner && (
+              <button
+                onClick={() => navigate(`/edit/${userId}`)}
+                className="px-5 py-2 rounded-full
+                bg-gradient-to-r from-yellow-400/15 to-orange-400/15
+                border border-yellow-400/30
+                hover:from-yellow-400/25 hover:to-orange-400/25"
+              >
+                Edit Profile
+              </button>
+            )}
+
+            {/* <button
+              onClick={() => navigate(`/matches/${userId}`)}
+              className="px-5 py-2 rounded-full
+              bg-gradient-to-r from-yellow-400/15 to-orange-400/15
+              border border-yellow-400/30"
+            >
+              Match Skills
+            </button>
 
             <button
-
-  onClick={() => navigate("/chat")} // or `/chat/${userId}` if you want
-
-  className="relative group bg-gray-800 px-4 py-2 rounded-full hover:bg-gray-700 transition"
-
->
-
-  💬 Chat
-
-</button>
+              onClick={() => navigate("/chat")}
+              className="px-5 py-2 rounded-full
+              bg-gradient-to-r from-yellow-400/15 to-orange-400/15
+              border border-yellow-400/30"
+            >
+              Chat
+            </button> */}
 
           </div>
+
+          <button
+            onClick={() => {
+              localStorage.removeItem("userId");
+              window.location.href = "/login";
+            }}
+            className="px-5 py-2
+            bg-gradient-to-r from-red-500/10 to-red-600/10
+            border border-red-500/30
+            hover:from-red-500/20 hover:to-red-600/20"
+          >
+            Logout
+          </button>
         </div>
-      </main>
+
+      </>
+    ) : (
+      <div className="text-center py-10 text-gray-400">
+        Profile not found.
+      </div>
+    )}
+  </div>
+
+<div className="mt-10 flex justify-center">
+  <div
+    className="flex flex-col sm:flex-row items-center gap-4 px-6 py-5 rounded-2xl
+    bg-gradient-to-r from-[#171b25]/95 via-[#11141d]/95 to-[#0d1018]/95
+    border border-yellow-400/20
+    shadow-[0_20px_60px_rgba(0,0,0,0.45)]
+    backdrop-blur-md"
+  >
+    <button
+      onClick={() => navigate(`/matches/${userId}`)}
+      className="min-w-[180px] px-6 py-3 rounded-xl font-semibold tracking-wide
+      text-black bg-gradient-to-r from-yellow-300 via-yellow-400 to-orange-400
+      shadow-[0_8px_30px_rgba(251,191,36,0.35)]
+      hover:scale-105 hover:shadow-[0_12px_35px_rgba(249,115,22,0.35)]
+      transition-all duration-300"
+    >
+      Match Skills
+    </button>
+
+    <button
+      onClick={() => navigate("/chat")}
+      className="min-w-[180px] px-6 py-3 rounded-xl font-semibold tracking-wide
+      text-yellow-300 border border-yellow-400/40
+      bg-gradient-to-r from-[#1a1f2b] to-[#10141d]
+      hover:bg-gradient-to-r hover:from-yellow-400/10 hover:to-orange-400/10
+      hover:text-white hover:scale-105
+      transition-all duration-300"
+    >
+      💬  Chat
+    </button>
+  </div>
+</div>
+
+
+</main>
     </div>
   );
 }

@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { getAuth } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase";
 export default function Matches() {
   const { userId } = useParams();
   const [matches, setMatches] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const [receivedRequests, setReceivedRequests] = useState([]);
 
   useEffect(() => {
     fetch("http://localhost:5000/search-profiles", {
@@ -24,6 +27,27 @@ export default function Matches() {
         setLoading(false);
       });
   }, [userId]);
+
+  useEffect(() => {
+  const auth = getAuth();
+
+  const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+    if (!currentUser) return;
+
+    const userRef = doc(db, "users", currentUser.uid);
+
+    const unsubFirestore = onSnapshot(userRef, (snap) => {
+      if (!snap.exists()) return;
+
+      const data = snap.data();
+      setReceivedRequests(data.receivedRequests || []);
+    });
+
+    return () => unsubFirestore();
+  });
+
+  return () => unsubscribe();
+}, []);
 
   return (
     <div className="min-h-screen relative overflow-hidden text-white px-8 py-10
@@ -66,9 +90,16 @@ export default function Matches() {
             bg-gradient-to-br from-yellow-400/5 via-transparent to-orange-400/5 pointer-events-none" />
           
          
-            <h2 className="relative text-xl font-semibold">
-              {m.name}
-            </h2>
+            <div className="relative flex items-center justify-between">
+  <h2 className="text-xl font-semibold">{m.name}</h2>
+
+  {/* ✅ REQUEST INDICATOR */}
+  {receivedRequests.includes(m.userId) && (
+    <span className="text-xs bg-green-500/20 border border-green-400 text-green-300 px-2 py-1 rounded-full">
+      Request Received
+    </span>
+  )}
+</div>
 
             <p className="relative text-sm text-gray-400 mt-3">
               Match Score:{" "}

@@ -15,6 +15,7 @@ import {
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import { startCall } from "../utils/callService";
+import { deleteField } from "firebase/firestore";
 
 export default function Profile() {
   const { userId } = useParams();
@@ -34,7 +35,7 @@ export default function Profile() {
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
   const [showAllFeedbacks, setShowAllFeedbacks] = useState(false);
 
-  const avgRating = feedbacks.length
+   const avgRating = feedbacks.length
     ? (feedbacks.reduce((sum, fb) => sum + fb.rating, 0) / feedbacks.length).toFixed(1)
     : null;
 
@@ -85,7 +86,6 @@ export default function Profile() {
     }
   };
 
-  // Fetch feedbacks
   useEffect(() => {
     if (!userId) return;
     setLoadingFeedbacks(true);
@@ -100,7 +100,6 @@ export default function Profile() {
       .finally(() => setLoadingFeedbacks(false));
   }, [userId]);
 
-  // Main user + session useEffect
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -113,42 +112,47 @@ export default function Profile() {
 
       const currentRef = doc(db, "users", currentUser.uid);
 
+      // ✅ START onSnapshot
       unsubscribeFirestore = onSnapshot(currentRef, (snap) => {
         if (!snap.exists()) return;
 
         const data = snap.data();
 
+        // 👉 declare FIRST
         const sentRequests = data.sentRequests || [];
         const receivedRequests = data.receivedRequests || [];
         const activeSessions = data.activeSessions || [];
         const sessionEndCount = data.sessionEndCount || {};
 
+        // 👉 reset
         setSessionActive(false);
         setHasReceivedRequest(false);
         setRequestSent(false);
         setWaitingEnd(false);
 
-        if (activeSessions.includes(userId)) {
-          setSessionActive(true);
+        // 👉 logic
+        // if (activeSessions.includes(userId)) {
+        //   setSessionActive(true);
 
           const sessionEndInitiator = data.sessionEndInitiator || {};
 
           if (activeSessions.includes(userId)) {
             setSessionActive(true);
 
+            // ✅ ONLY first user sees waiting
             if (
               sessionEndCount[userId] === 1 &&
               sessionEndInitiator[userId] === currentUser.uid
             ) {
               setWaitingEnd(true);
             }
-          }
+          
         } else if (receivedRequests.includes(userId)) {
           setHasReceivedRequest(true);
         } else if (sentRequests.includes(userId)) {
           setRequestSent(true);
         }
-      });
+      }); // ✅ CLOSE onSnapshot HERE
     });
 
     fetch(`http://localhost:5000/user/${userId}`)
@@ -160,7 +164,9 @@ export default function Profile() {
       .catch((e) => setError(e.message || "Failed to load"))
       .finally(() => setLoading(false));
 
-    return () => unsubscribeAuth();
+    return () => { unsubscribeAuth();
+    if (unsubscribeFirestore) unsubscribeFirestore();
+    };
   }, [userId]);
 
   const handleSendRequest = async () => {
@@ -188,30 +194,36 @@ export default function Profile() {
       }
 
       const senderData = senderSnap.data();
+
       const sentCount = senderData.sentRequestCount || 0;
       const sentRequests = senderData.sentRequests || [];
 
+      // 🚫 Already sent to this user
       if (sentRequests.includes(userId)) {
         setRequestSent(true);
         alert("Request already sent");
         return;
       }
 
+      // 🚫 Only 1 request allowed
       if (sentCount >= 1) {
         alert("You can send only one request at a time");
         return;
       }
 
+      // ✅ Add to receiver
       await updateDoc(receiverRef, {
         receivedRequests: arrayUnion(currentUser.uid),
       });
 
+      // ✅ Update sender
       await updateDoc(senderRef, {
         sentRequests: arrayUnion(userId),
         sentRequestCount: sentCount + 1,
       });
 
       setRequestSent(true);
+
       alert("Request sent successfully!");
     } catch (error) {
       console.error(error);
@@ -228,8 +240,8 @@ export default function Profile() {
         return;
       }
 
-      const receiverRef = doc(db, "users", currentUser.uid);
-      const senderRef = doc(db, "users", userId);
+      const receiverRef = doc(db, "users", currentUser.uid); // B
+      const senderRef = doc(db, "users", userId); // A
 
       const receiverSnap = await getDoc(receiverRef);
       const senderSnap = await getDoc(senderRef);
@@ -250,18 +262,22 @@ export default function Profile() {
         return;
       }
 
+      // ✅ Update receiver (B)
       await updateDoc(receiverRef, {
         tokens: receiverTokens - 1,
         receivedRequests: arrayRemove(userId),
         activeSessions: arrayUnion(userId),
       });
 
+      // ✅ Update sender (A)
       await updateDoc(senderRef, {
         tokens: senderTokens - 1,
         sentRequests: arrayRemove(currentUser.uid),
         activeSessions: arrayUnion(currentUser.uid),
+        // ❌ DO NOT reduce sentRequestCount
       });
 
+      // UI update
       setSessionActive(true);
       setHasReceivedRequest(false);
       setRequestSent(false);
@@ -288,8 +304,14 @@ export default function Profile() {
       const otherData = otherSnap.data();
 
       const currentEnd = currentData.sessionEndCount || {};
+      // const otherEnd = otherData.sessionEndCount || {};
+
+      // const currentInitiator = currentData.sessionEndInitiator || {};
+      // const otherInitiator = otherData.sessionEndInitiator || {};
+
       const currentCount = currentEnd[userId] || 0;
 
+      // ✅ FIRST CLICK
       if (currentCount === 0) {
         await updateDoc(currentRef, {
           [`sessionEndCount.${userId}`]: 1,
@@ -305,14 +327,21 @@ export default function Profile() {
         return;
       }
 
+      // ✅ SECOND CLICK → END SESSION
       const currentTokens = currentData.tokens || 0;
       const otherTokens = otherData.tokens || 0;
 
       await updateDoc(currentRef, {
         tokens: currentTokens + 1,
         activeSessions: arrayRemove(userId),
-        [`sessionEndCount.${userId}`]: 0,
-        [`sessionEndInitiator.${userId}`]: "",
+        // ✅ CLEAN PROPERLY
+  sentRequestCount: 0,
+  sentRequests: [],
+
+  [`sessionEndCount.${userId}`]: deleteField(),
+  [`sessionEndInitiator.${userId}`]: deleteField(),
+  [`sessionEndCount.${currentUser.uid}`]: deleteField(),
+  [`sessionEndInitiator.${currentUser.uid}`]: deleteField(),
       });
 
       await updateDoc(otherRef, {
@@ -331,6 +360,41 @@ export default function Profile() {
       alert("Error ending session");
     }
   };
+
+  const handleUndoRequest = async () => {
+  try {
+    const currentUser = getAuth().currentUser;
+
+    if (!currentUser) {
+      alert("Login required");
+      return;
+    }
+
+    const senderRef = doc(db, "users", currentUser.uid);
+    const receiverRef = doc(db, "users", userId);
+
+    // ✅ Remove from receiver's receivedRequests
+    await updateDoc(receiverRef, {
+      receivedRequests: arrayRemove(currentUser.uid),
+    });
+
+    // ✅ Remove from sender
+    await updateDoc(senderRef, {
+      sentRequests: arrayRemove(userId),
+      sentRequestCount: 0,
+    });
+
+    setRequestSent(false);
+
+    alert("Request withdrawn successfully!");
+
+  } catch (error) {
+    console.error(error);
+    alert("Error undoing request: " + error.message);
+  }
+};
+
+
 
   if (loading)
     return (
@@ -509,18 +573,17 @@ transition"
                 Message
               </button>
               <button
-                className="px-5 py-2 rounded-full
-bg-gradient-to-r from-yellow-400/15 to-orange-400/15
-border border-yellow-400/30
-text-white-300
-hover:from-yellow-400/25 hover:to-orange-400/25
-hover:text-yellow-200
-transition"
-                onClick={handleVideoCall}
-              >
-                Video Call
-              </button>
-
+  className={`px-5 py-2 rounded-full border transition
+  ${
+    sessionActive
+      ? "bg-gradient-to-r from-yellow-400/15 to-orange-400/15 border-yellow-400/30 text-white-300 hover:from-yellow-400/25 hover:to-orange-400/25 hover:text-yellow-200"
+      : "bg-gray-700 border-gray-500 text-gray-400 cursor-not-allowed"
+  }`}
+  onClick={handleVideoCall}
+  disabled={!sessionActive}
+>
+  {sessionActive ? "Video Call" : "Video Call"}
+</button>
               {sessionActive ? (
                 <button
                   className="px-5 py-2 rounded-full
@@ -540,21 +603,26 @@ transition"
                 >
                   Accept Request
                 </button>
-              ) : (
-                <button
-                  className={`px-5 py-2 rounded-full border transition
-    ${
-      requestSent
-        ? "bg-gray-700 border-gray-500 text-gray-300 cursor-not-allowed"
-        : "bg-gradient-to-r from-yellow-400/15 to-orange-400/15 border-yellow-400/30 text-white-300 hover:from-yellow-400/25 hover:to-orange-400/25 hover:text-yellow-200"
-    }`}
-                  onClick={handleSendRequest}
-                  disabled={requestSent}
-                >
-                  {requestSent ? "Requested" : "Send Request"}
-                </button>
-              )}
+              ) : requestSent ? (
+  // ✅ NEW UNDO BUTTON
+  <button
+    className="px-5 py-2 rounded-full
+    bg-red-600/20 border border-red-400 text-red-300
+    hover:bg-red-600/30 transition"
+    onClick={handleUndoRequest}
+  >
+    Undo Request
+  </button>
 
+) : (
+  <button
+    className="px-5 py-2 rounded-full border transition
+    bg-gradient-to-r from-yellow-400/15 to-orange-400/15 border-yellow-400/30 text-white-300 hover:from-yellow-400/25 hover:to-orange-400/25 hover:text-yellow-200"
+    onClick={handleSendRequest}
+  >
+    Send Request
+  </button>
+)}
               <button
                 className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15
