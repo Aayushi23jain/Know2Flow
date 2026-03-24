@@ -9,7 +9,8 @@ export default function ChatList({ onSelectUser }) {
 
   useEffect(() => {
     if (!meUid) return;
-
+    const currentUid = localStorage.getItem("userId"); // e.g., "F1VW1FZQ5TNzFHhQMjx2jW6OZPt2"
+  if (!currentUid) return;
     // 1. Listen for chats where the logged-in user is a participant
     const q = query(
       collection(db, "chats"),
@@ -58,28 +59,27 @@ export default function ChatList({ onSelectUser }) {
           </div>
         ) : (
           chats.map((chat) => (
-            <div
-              key={chat.chatId}
-              onClick={() => onSelectUser({ uid: chat.otherUserId, name: chat.name })}
-              className="flex items-center gap-3 p-3 rounded-xl cursor-pointer hover:bg-white/5 transition-all border border-transparent hover:border-white/10 group"
-            >
-              {/* Avatar Placeholder */}
-              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-orange-500/20 to-yellow-500/20 flex items-center justify-center text-orange-400 font-bold border border-orange-500/20">
-                {chat.name.charAt(0).toUpperCase()}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-baseline">
-                  <h3 className="font-semibold text-gray-200 truncate group-hover:text-yellow-400 transition-colors">
-                    {chat.name}
-                  </h3>
-                </div>
-                <p className="text-xs text-gray-500 truncate mt-1">
-                  {chat.lastMessage}
-                </p>
-              </div>
-            </div>
-          ))
+  <div 
+    key={chat.chatId} // Changed from chat.id to chat.chatId to match your state
+    onClick={() => onSelectUser(chat.otherUserId)} // Use the prop passed to the component
+    className="flex items-center gap-4 p-4 hover:bg-white/5 cursor-pointer border-b border-white/5"
+  >
+    <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold">
+      {/* FIX: Use chat.name instead of chat.chatName */}
+      {chat.name ? chat.name.charAt(0) : "?"}
+    </div>
+    <div className="flex-1">
+      <div className="flex justify-between">
+        <h4 className="font-bold text-white">{chat.name}</h4>
+        <span className="text-[10px] text-gray-500">
+          {/* FIX: chat.updatedAt is already a Date object from your useEffect logic */}
+          {chat.updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
+      <p className="text-sm text-gray-400 truncate">{chat.lastMessage}</p>
+    </div>
+  </div>
+))
         )}
       </div>
     </div>

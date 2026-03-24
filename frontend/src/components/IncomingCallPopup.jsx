@@ -12,10 +12,12 @@ import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
+import { io } from "socket.io-client";
+import { useRef } from "react";
 export default function IncomingCallPopup() {
   const [incomingCall, setIncomingCall] = useState(null);
   const [callerName, setCallerName] = useState("Unknown");
-  
+  const socketRef = useRef(null);
   const [callerPhoto, setCallerPhoto] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
@@ -31,28 +33,15 @@ export default function IncomingCallPopup() {
 
     return () => unsubscribeAuth();
   }, [auth]);
-<<<<<<< Updated upstream
-
+useEffect(() => {
+    const socket = io("http://localhost:5000", { withCredentials: true });
+    socketRef.current = socket;
+    return () => socket.disconnect();
+  }, []);
   useEffect(() => {
   console.log("Current user:", currentUser);
 }, [currentUser]);
 
-=======
-// When popup disappears without accept
-useEffect(() => {
-  if (!incomingCall) return;
-
-  const timer = setTimeout(async () => {
-    if (incomingCall.status === "ringing") {
-      await updateDoc(doc(db, "calls", incomingCall.id), {
-        status: "missed", // 🔥 NEW STATUS
-      });
-    }
-  }, 30000); // 30 sec
-
-  return () => clearTimeout(timer);
-}, [incomingCall]);
->>>>>>> Stashed changes
   // ✅ Listen for incoming calls
   useEffect(() => {
     if (!currentUser) return;
@@ -113,11 +102,26 @@ setCallerPhoto(callData.callerPhoto || null);
   const rejectCall = async () => {
     if (!incomingCall) return;
 
-    await updateDoc(doc(db, "calls", incomingCall.id), {
-      status: "rejected",
-    });
+    try {
+      // 1. Update Firebase
+      await updateDoc(doc(db, "calls", incomingCall.id), {
+        status: "rejected",
+      });
 
-    setIncomingCall(null);
+      // 2. Notify Chat via Socket
+      if (socketRef.current) {
+        socketRef.current.emit("call-status-update", {
+          channelName: incomingCall.channelName,
+          status: "rejected",
+          message: "Video call rejected",
+          senderName: currentUser?.displayName || "User"
+        });
+      }
+
+      setIncomingCall(null);
+    } catch (error) {
+      console.error("Error rejecting call:", error);
+    }
   };
 
   if (!incomingCall) return null;

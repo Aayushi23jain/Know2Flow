@@ -44,11 +44,36 @@ const io = new Server(server, {
   },
 });
 io.use(socketAuth);
-
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
+  
   registerChatHandlers(io, socket);
 
+  socket.on("join-channel", (channelName) => {
+    socket.join(channelName);
+    console.log(`User ${socket.id} joined room: ${channelName}`);
+    
+    // Optional: Tell the user they joined successfully
+    socket.emit("joined-success", channelName);
+  });
+
+  // socket.on("caption-send", (data) => {
+  //   // Log this to see if data is actually reaching the server
+  //   console.log(`Caption from ${socket.id} to room ${data.channelName}: ${data.text}`);
+    
+  //   // Broadcast to others in the room
+  //   io.to(data.channelName).emit("caption-receive", {
+  //     text: data.text,
+  //     userName: data.userName,
+  //     senderId: socket.id // Helpful for debugging
+      
+  //   });
+  // });
+// Server (index.js)
+socket.on("call-status-update", (data) => {
+  // Broadcast to everyone in the channel including the sender
+  io.to(data.channelName).emit("call-status-update", data);
+});
   socket.on("disconnect", () => {
     console.log("User disconnected:", socket.id);
   });

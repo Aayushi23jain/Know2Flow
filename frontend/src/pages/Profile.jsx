@@ -406,7 +406,7 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
             {avgRating ? (
               <span className="ml-2 text-sm text-gray-400">{avgRating} / 5</span>
             ) : (
-              <span className="ml-2 text-sm text-gray-500">No ratings yet</span>
+              <span className="ml-2 text-sm text-gray-500"></span>
             )}
           </div>
 

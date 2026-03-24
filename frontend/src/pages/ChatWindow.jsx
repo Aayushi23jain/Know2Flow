@@ -1,17 +1,25 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { io } from "socket.io-client";
-import { db } from "../firebase"; // your firebase.js
-import {
-  collection,
-  query,
-  orderBy,
+import { db } from "../firebase";
+import { 
+  collection, 
+  query, 
+  orderBy, 
   onSnapshot,
-} from "firebase/firestore";
+  doc, 
+  setDoc, 
+  addDoc, 
+  serverTimestamp 
+} from "firebase/firestore"; // <— all imports together
+export default function ChatWindow({ userId: propUserId }) {
 
-
-export default function ChatWindow({ userId }) {
   const navigate = useNavigate();
+  const { userId: urlUserId } = useParams();
+  
+  // Now propUserId correctly maps to the value coming from ChatLayout
+  const userId = propUserId || urlUserId;
+
 
   const [meUid, setMeUid] = useState(null);
   const [user, setUser] = useState(null); // chat user profile
@@ -49,37 +57,87 @@ export default function ChatWindow({ userId }) {
     };
   }, [meUid]);
 
-  /* ================= FIRESTORE CHAT ================= */
-  useEffect(() => {
-    if (!meUid) return;
+/* ================= FIRESTORE CHAT ================= */
+useEffect(() => {
+  if (!meUid || !userId) return; // Added !userId check
 
-    const chatId = [meUid, userId].sort().join("_");
-    const q = query(
-      collection(db, "chats", chatId, "messages"),
-      orderBy("createdAt")
-    );
+  const chatId = [meUid, userId].sort().join("_");
+  const q = query(
+    collection(db, "chats", chatId, "messages"),
+    orderBy("createdAt")
+  );
 
-    const unsubscribe = onSnapshot(q, snapshot => {
-      const msgs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-      setMessages(msgs);
-    });
+  const unsubscribe = onSnapshot(q, snapshot => {
+    const msgs = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+    setMessages(msgs);
+  });
 
-    return () => unsubscribe();
-  }, [meUid, userId]);
+  return () => unsubscribe();
+}, [meUid, userId]); // Both are needed here
 
   /* ================= SEND MESSAGE ================= */
-  const sendMessage = () => {
+
+const sendMessage = async () => {
   if (!text.trim()) return;
 
+  // 1️⃣ Emit socket as before
   socketRef.current.emit("sendMessage", {
     receiverId: userId,
     text: text.trim(),
   });
+fetch(`http://localhost:5000/user/${userId}/addToChat`, { 
+  method: "POST",
+  credentials: "include",
+})
+  // 2️⃣ Add/update Firestore chat
+  if (meUid) {
+    try {
+      const chatId = [meUid, userId].sort().join("_");
+      const chatRef = doc(db, "chats", chatId);
+
+      // create chat document if it doesn't exist, merge to avoid overwriting
+      await setDoc(
+        chatRef,
+        {
+          participants: [meUid, userId],
+          userNames: {
+            [meUid]: "Me",         // you can replace with actual meName
+            [userId]: user?.name || "User",
+          },
+        },
+        { merge: true }
+      );
+
+      // add message to subcollection
+      const msgRef = collection(chatRef, "messages");
+      await addDoc(msgRef, {
+        senderId: meUid,
+        text: text.trim(),
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.error("Error saving chat to Firestore:", err);
+    }
+  }
 
   setText("");
 };
 
+useEffect(() => {
+  if (!socketRef.current) return;
 
+  socketRef.current.on("receiveMessage", (msg) => {
+    // add message to local messages state
+    setMessages(prev => [...prev, msg]);
+
+    // refresh chat list if needed
+    fetch("http://localhost:5000/user/me/chats", { credentials: "include" })
+      .then(r => r.ok ? r.json() : [])
+      .then(setChatUsers); // assuming you have state for chat list
+  });
+
+  return () => socketRef.current.off("receiveMessage");
+}, []);
   /* ================= AUTOSCROLL ================= */
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -89,19 +147,41 @@ export default function ChatWindow({ userId }) {
     <div className="min-h-screen flex flex-col bg-[#0b0b10] text-white">
 
       {/* HEADER */}
-      <div className="h-14 flex items-center px-4 border-b border-white/10 justify-between">
-        <div className="flex items-center">
-          <button onClick={() => navigate(-1)}>←</button>
-          <span className="ml-4 font-semibold">{user?.name || "Chat"}</span>
-        </div>
-
-        {/* <button
-          onClick={clearChat}
-          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-500"
-        >
-          Clear Chat
-        </button> */}
+     {/* HEADER */}
+<div className="h-14 flex items-center px-4 border-b border-white/10 justify-between">
+  <div className="flex items-center">
+    {/* Back Button */}
+    <button 
+      onClick={() => navigate(-1)} 
+      className="p-2 hover:bg-white/5 rounded-full transition-colors"
+    >
+      ←
+    </button>
+    
+    {/* Clickable Name and Profile Info */}
+    <div 
+      onClick={() => navigate(`/profile/${userId}`)} 
+      className="flex items-center ml-2 cursor-pointer group"
+    >
+      {/* Optional: Add a small avatar circle next to the name */}
+      <div className="w-8 h-8 rounded-full bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold text-xs">
+        {user?.name?.charAt(0) || "U"}
       </div>
+      
+      <span className="ml-3 font-semibold group-hover:text-orange-400 transition-colors">
+        {user?.name || "Loading..." }
+      </span>
+    </div>
+  </div>
+
+  {/* Optional: Add a "View Profile" button on the right for clarity */}
+  <button
+    onClick={() => navigate(`/profile/${userId}`)}
+    className="text-xs text-gray-400 hover:text-white border border-white/10 px-3 py-1 rounded-lg hover:bg-white/5"
+  >
+    View Profile
+  </button>
+</div>
 
       {/* MESSAGES */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
