@@ -99,6 +99,8 @@ import chatRoutes from "./routes/chat.js";
 import registerChatHandlers from "./sockets/chat.js";
 import socketAuth from "./sockets/socketAuth.js";
 import agoraTokenRoute from "./routes/agoraToken.js";
+import challengeRoutes from "./routes/challenge.js"
+import { startChallengeScheduler } from "./jobs/challengeScheduler.js"
 const app = express();
 
 app.use(cors({
@@ -115,6 +117,7 @@ app.use("/search-profiles", searchProfilesRoute);
 app.use("/user", userRoute);
 app.use("/chat", chatRoutes);
 app.use("/api/agora", agoraTokenRoute);
+app.use("/challenge", challengeRoutes)
 // HTTP server
 const server = http.createServer(app);
 
@@ -166,3 +169,4 @@ socket.on("call-status-update", (data) => {
 server.listen(5000, () => {
   console.log("🚀 Backend running on port 5000");
 });
+startChallengeScheduler();
