@@ -23,10 +23,35 @@ export default function Dashboard() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
   const [showAllFeedbacks, setShowAllFeedbacks] = useState(false);
+ // Add this state to your Profile component
+const [averageRating, setAverageRating] = useState(0);
 
-  const avgRating = feedbacks.length
-    ? (feedbacks.reduce((sum, fb) => sum + fb.rating, 0) / feedbacks.length).toFixed(1)
-    : null;
+useEffect(() => {
+  if (!userId) return;
+
+  const ratingsRef = collection(db, "users", userId, "ratings");
+  
+  // Use onSnapshot for real-time updates or getDocs for one-time fetch
+  const unsubscribe = onSnapshot(ratingsRef, (snapshot) => {
+    if (snapshot.empty) {
+      setAverageRating(0);
+      return;
+    }
+
+    const ratings = snapshot.docs.map(doc => doc.data().rating || 0);
+    const total = ratings.reduce((acc, curr) => acc + curr, 0);
+    const avg = total / ratings.length;
+    
+    setAverageRating(avg);
+  });
+
+  return () => unsubscribe();
+}, [userId]);
+// 1. Calculate the numeric value
+// Locate this block near the top of your component
+// This replaces the old numericAvg/displayAvg block
+const roundedAvg = Math.round(averageRating);
+const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
 
   // 1. Auth Check: Get current logged in user
  // 1. Auth Check: Get current logged in user
@@ -197,26 +222,27 @@ useEffect(() => {
               <p className="text-gray-400">{user.email}</p>
 
               <div className="mt-3 flex flex-col gap-2">
-  <div className="flex items-center gap-2">
-    <div className="flex">
-      {[1, 2, 3, 4, 5].map((s) => (
-        <span
-          key={s}
-          className={`text-lg ${
-            s <= Math.round(avgRating || 0)
-              ? "text-yellow-400"
-              : "text-gray-500"
-          }`}
-        >
-          ★
-        </span>
-      ))}
-    </div>
+           {/* Average star rating in header */}
+<div className="flex items-center gap-1 ml-4">
+  {[1, 2, 3, 4, 5].map((star) => (
+    <span
+      key={star}
+      className={`text-2xl ${
+        star <= roundedAvg ? "text-yellow-400" : "text-gray-600"
+      }`}
+    >
+      ★
+    </span>
+  ))}
+  {displayAvg ? (
+    <span className="ml-2 text-sm text-gray-400">
+      
+    </span>
+  ) : (
+    <span className="ml-2 text-sm text-gray-500"></span>
+  )}
+</div>
 
-    {avgRating && (
-      <span className="text-xs text-gray-400">({avgRating})</span>
-    )}
-  </div>
 
   <span className="text-yellow-400 font-semibold">
     Tokens: {user.tokens ?? 0}
@@ -261,59 +287,45 @@ useEffect(() => {
 
         {/* FEEDBACK */}
         <div className="mt-8">
-          <h3 className="font-semibold text-gray-300 mb-3">
-            Feedback Received
-          </h3>
+  <h3 className="font-semibold text-gray-300 mb-3">Feedback Received</h3>
 
-          {loadingFeedbacks ? (
-            <div className="text-gray-500 text-sm">Loading feedbacks...</div>
-          ) : feedbacks.length === 0 ? (
-            <div className="text-gray-500 text-sm">No feedbacks yet.</div>
-          ) : (
-            <div className="space-y-4">
-              {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map((fb) => (
-                <div
-                  key={fb.id}
-                  className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <div className="font-semibold text-yellow-300">
-                      {fb.givenByName || "User"}
-                    </div>
-                    <div className="text-gray-200 mt-1">{fb.text}</div>
-                  </div>
+  {loadingFeedbacks ? (
+    <div className="text-gray-500 text-sm">Loading feedbacks...</div>
+  ) : feedbacks.length === 0 ? (
+    <div className="text-gray-500 text-sm">No feedbacks yet.</div>
+  ) : (
+    <div className="space-y-4">
 
-                  <div className="flex items-center gap-1 mt-2 sm:mt-0">
-                    {[1,2,3,4,5].map((star) => (
-                      <span key={star}
-                        className={`text-lg ${
-                          star <= fb.rating
-                            ? "text-yellow-400"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        ★
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {feedbacks.length > 3 && (
-                <div className="flex justify-end mt-2">
-                  <span
-                    onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
-                    className="cursor-pointer text-yellow-400 hover:text-orange-400 font-semibold"
-                  >
-                    {showAllFeedbacks
-                      ? "Show Less"
-                      : `+${feedbacks.length - 3} more`}
-                  </span>
-                </div>
-              )}
+      
+      {/* Feedback list */}
+      {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map((fb) => (
+        <div
+          key={fb.id}
+          className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <div className="font-semibold text-yellow-300">
+              {fb.givenByName || "Anonymous"}
             </div>
-          )}
+            <div className="text-gray-200 mt-1">{fb.text}</div>
+          </div>
+         
         </div>
+      ))}
+
+      {/* Show "Show more" button if needed */}
+      {feedbacks.length > 3 && (
+        <button
+          className="text-yellow-400 text-sm mt-2"
+          onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
+        >
+          {showAllFeedbacks ? "Show less" : "Show all"}
+        </button>
+      )}
+
+    </div>
+  )}
+</div>
 
         {/* ACTION BUTTONS (PROFILE STYLE) */}
         <div className="mt-8 flex justify-between items-center">

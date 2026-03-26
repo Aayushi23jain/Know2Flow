@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { db } from "../firebase"; // adjust path if needed
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import {
+  doc,
+  setDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+  getDoc,
+  getDocs,
+} from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-
 
 export default function Feedback() {
   const { userId } = useParams();
   const navigate = useNavigate();
+
   const [user, setUser] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [rating, setRating] = useState(0);
@@ -16,7 +24,9 @@ export default function Feedback() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [feedbackList, setFeedbackList] = useState([]);
 
+  // Fetch user info
   useEffect(() => {
     setLoading(true);
     setError(null);
@@ -27,56 +37,100 @@ export default function Feedback() {
       .finally(() => setLoading(false));
   }, [userId]);
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  // Fetch current user's rating
+  useEffect(() => {
+    const fetchRating = async () => {
+      const currentUser = getAuth().currentUser;
+      if (!currentUser) return;
 
-  if (!feedback.trim() || rating === 0) {
-    setMessage("Please provide both feedback and rating.");
-    return;
-  }
+      const ratingRef = doc(db, "users", userId, "ratings", currentUser.uid);
+      const snap = await getDoc(ratingRef);
 
-  setSubmitting(true);
-  setMessage("");
+      if (snap.exists()) {
+        setRating(snap.data().rating); // fill stars
+      }
+    };
 
-  try {
-    // 👇 Replace this with actual logged-in user ID later
-    const auth = getAuth();
-const currentUser = auth.currentUser;
+    fetchRating();
+  }, [userId]);
 
-if (!currentUser) {
-  setMessage("❌ You must be logged in to submit feedback");
-  setSubmitting(false);
-  return;
-}
-await currentUser.reload();
-const currentUserId = currentUser.uid;
-const currentUserName =
-  currentUser.displayName ||
-  currentUser.email?.split("@")[0] ||
-  "Anonymous";
+  // Fetch feedback list
+  useEffect(() => {
+    const fetchFeedbacks = async () => {
+      const feedbackRef = collection(db, "users", userId, "feedbacks");
+      const snapshot = await getDocs(feedbackRef);
 
-    // 📌 Reference to: users/{userId}/feedbacks
-    const feedbackRef = collection(db, "users", userId, "feedbacks");
+      const list = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-  await addDoc(feedbackRef, {
-  text: feedback,
-  rating: rating,
-  givenById: currentUserId,
-  givenByName: currentUserName,
-  createdAt: serverTimestamp(),
-});
+      setFeedbackList(list);
+    };
 
-    setMessage("✅ Feedback submitted successfully!");
-    setFeedback("");
-    setRating(0);
+    fetchFeedbacks();
+  }, [userId]);
 
-  } catch (err) {
-    console.error(err);
-    setMessage("❌ Error submitting feedback");
-  }
+  // Handle feedback submission
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  setSubmitting(false);
-};
+    if (!feedback.trim() || rating === 0) {
+      setMessage("Please provide both feedback and rating.");
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage("");
+
+    try {
+      const currentUser = getAuth().currentUser;
+
+      if (!currentUser) {
+        setMessage("❌ You must be logged in to submit feedback");
+        setSubmitting(false);
+        return;
+      }
+
+      if (currentUser.uid === userId) {
+        setMessage("❌ You cannot give feedback to yourself");
+        setSubmitting(false);
+        return;
+      }
+
+      const currentUserId = currentUser.uid;
+      const currentUserName =
+        currentUser.displayName ||
+        currentUser.email?.split("@")[0] ||
+        "Anonymous";
+
+      // Update rating
+      const ratingRef = doc(db, "users", userId, "ratings", currentUserId);
+      await setDoc(ratingRef, {
+        rating: rating,
+        givenById: currentUserId,
+        updatedAt: serverTimestamp(),
+      });
+
+      // Add feedback
+      const feedbackRef = collection(db, "users", userId, "feedbacks");
+      await addDoc(feedbackRef, {
+        text: feedback,
+        givenById: currentUserId,
+        givenByName: currentUserName,
+        createdAt: serverTimestamp(),
+      });
+
+      setMessage("✅ Feedback submitted successfully!");
+      setFeedback("");
+      setRating(0);
+    } catch (err) {
+      console.error(err);
+      setMessage("❌ Error submitting feedback");
+    }
+
+    setSubmitting(false);
+  };
 
   if (loading) {
     return (
@@ -85,6 +139,7 @@ const currentUserName =
       </div>
     );
   }
+
   if (error) {
     return (
       <div className="min-h-screen flex items-center justify-center text-red-400">
