@@ -1,63 +1,140 @@
 import express from "express";
 import { db } from "../firebase.js";
+
 import verifyCookie from "../middlewares/verifyCookie.js";
-import { getWeekId, generateWeeklyChallenge } from "../jobs/challengeScheduler.js";
+import {
+  getWeekId
+} from "../jobs/challengeScheduler.js";
+import { getUserProfile } from "../utils/getUserProfile.js";
+import OpenAI from "openai";
+import { sanitizeQuestions } from "../jobs/challengeScheduler.js";
+
+
+// const questions = sanitizeQuestions(JSON.parse(text));
+
+const openai = new OpenAI({
+  apiKey: process.env.CHALLENGE_GEMINI_API_KEY,
+  baseURL: "https://openrouter.ai/api/v1",
+});
+
+
 
 const router = express.Router();
 
-// ─── GET /challenge/weekly ────────────────────────────────────────────────────
-// Returns this week's quiz (no correct answers) + whether user already attempted
+
+
 router.get("/weekly", verifyCookie, async (req, res) => {
   try {
+    const userId = req.user.uid;
     const weekId = getWeekId();
-    const userId = req.user.uid; // from verifyCookie → Firebase decoded claims
 
-    // If no challenge exists yet for this week, generate one on the fly
-    const challengeRef = db.collection("weeklyChallenges").doc(weekId);
-    let challengeSnap = await challengeRef.get();
+    const docId = `${userId}_${weekId}`;
+    const challengeRef = db.collection("userChallenges").doc(docId);
 
-    if (!challengeSnap.exists) {
-      console.log("No challenge for this week yet, generating...");
-      await generateWeeklyChallenge();
-      challengeSnap = await challengeRef.get();
-    }
+    // ✅ 1. Check if already exists
+     const existingSnap = await challengeRef.get();
 
-    if (!challengeSnap.exists) {
-      return res
-        .status(404)
-        .json({ error: "Challenge could not be generated" });
-    }
+if (existingSnap.exists) {
+  const challenge = existingSnap.data();
 
-    const challenge = challengeSnap.data();
+  const alreadyAttempted = challenge.attempted || false;
+      const previousScore = challenge.score || null;
 
-    // Check if this user already submitted this week
-    const attemptSnap = await db
-      .collection("challengeAttempts")
-      .doc(`${userId}_${weekId}`)
-      .get();
+  const safeQuestions = challenge.questions.map(
+    ({ question, options }, index) => ({
+      index,
+      question,
+      options,
+    })
+  );
 
-    const alreadyAttempted = attemptSnap.exists;
-    const previousScore = alreadyAttempted
-      ? attemptSnap.data().score
-      : null;
+  return res.json({
+    success: true,
+    questions: safeQuestions,
+    title: challenge.title,
+    tags: challenge.tags,
+    alreadyAttempted,
+    previousScore,
+  });
+}
 
-    // Strip correctAnswer before sending to frontend
-    const safeQuestions = challenge.questions.map(
-      ({ question, options }, index) => ({ index, question, options })
-    );
+    // ✅ 2. Generate NEW quiz
+    const { teachSkills, experienceLevel } = await getUserProfile(userId);
+
+    const skillsText = teachSkills.length
+      ? teachSkills.join(", ")
+      : "general knowledge";
+
+    const prompt = `
+Generate exactly 10 multiple choice questions STRICTLY based on these skills:
+
+Skills: ${skillsText}
+Experience Level: ${experienceLevel}
+
+Rules:
+- Questions must ONLY be about these skills
+- Do NOT include programming unless skills mention it
+- Keep difficulty aligned with experience level
+- Each question must have 4 options
+- correctAnswer must be 0–3
+- Return ONLY JSON array
+
+Each item must be:
+{
+  "question": "string",
+  "options": ["option1", "option2", "option3", "option4"],
+  "correctAnswer": 0
+}
+`;
+
+    const response = await openai.chat.completions.create({
+      model: "qwen/qwen3-next-80b-a3b-instruct",
+      // model: "arcee-ai/trinity-mini",
+      messages: [
+        { role: "system", content: "You generate strict JSON quiz data." },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+    });
+
+    let text = response.choices?.[0]?.message?.content || "";
+    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
+
+    const questions = sanitizeQuestions(JSON.parse(text));
+
+    // ✅ 3. SAVE in Firestore
+    await challengeRef.set({
+      userId,
+      weekId,
+      title: "Personalized Challenge",
+      tags: teachSkills,
+      questions, // includes correctAnswer
+      createdAt: new Date(),
+    });
+
+    // ✅ 4. Send SAFE version to frontend
+    const safeQuestions = questions.map(({ question, options }, index) => ({
+      index,
+      question,
+      options,
+    }));
+
+  
+
+
 
     return res.json({
       success: true,
-      weekId,
-      title: challenge.title,
-      tags: challenge.tags,
       questions: safeQuestions,
-      alreadyAttempted,
-      previousScore,
+      title: "Personalized Challenge",
+  tags: teachSkills,
+      alreadyAttempted:false,
+  previousScore:null,
     });
+
   } catch (err) {
-    console.error("❌ GET /challenge/weekly error:", err.message);
-    return res.status(500).json({ error: "Server error" });
+    console.error("❌ Error:", err.message);
+    return res.status(500).json({ error: "Failed to load challenge" });
   }
 });
 
@@ -83,8 +160,10 @@ router.post("/submit", verifyCookie, async (req, res) => {
 
     // Fetch challenge with correct answers for grading
     const challengeSnap = await db
-      .collection("weeklyChallenges")
-      .doc(weekId)
+      // .collection("weeklyChallenges")
+      .collection("userChallenges")
+.doc(`${userId}_${weekId}`)
+      // .doc(weekId)
       .get();
 
     if (!challengeSnap.exists) {
@@ -108,7 +187,7 @@ router.post("/submit", verifyCookie, async (req, res) => {
       return { questionIndex: index, selectedOption, isCorrect };
     });
 
-    const score = correctCount * 100; // 100 pts per correct, max 1000
+    const score = correctCount * 10; // 10 pts per correct, max 1000
 
     // Save attempt to Firestore
     await attemptRef.set({
@@ -120,6 +199,34 @@ router.post("/submit", verifyCookie, async (req, res) => {
       total: questions.length,
       submittedAt: new Date(),
     });
+
+    const challengeRef = db
+  .collection("userChallenges")
+  .doc(`${userId}_${weekId}`);
+
+await challengeRef.update({
+  attempted: true,
+  score,
+});
+
+// ✅ Update user's total score safely
+const userRef = db.collection("users").doc(userId);
+
+await db.runTransaction(async (transaction) => {
+  const userSnap = await transaction.get(userRef);
+
+  let prevScore = 0;
+
+  if (userSnap.exists) {
+    prevScore = userSnap.data().totalScore || 0;
+  }
+
+  const newTotalScore = prevScore + score;
+
+  transaction.update(userRef, {
+    totalScore: newTotalScore,
+  });
+});
 
     return res.json({
       success: true,
@@ -135,45 +242,32 @@ router.post("/submit", verifyCookie, async (req, res) => {
 });
 
 // ─── GET /challenge/leaderboard ───────────────────────────────────────────────
-router.get("/leaderboard", verifyCookie, async (req, res) => {
+router.get("/global-leaderboard", async (req, res) => {
   try {
-    const weekId = getWeekId();
+    const usersSnap = await db.collection("users").get();
 
-    const attemptsSnap = await db
-      .collection("challengeAttempts")
-      .where("weekId", "==", weekId)
-      .orderBy("score", "desc")
-      .limit(20)
-      .get();
+    const leaderboard = usersSnap.docs.map((doc) => {
+      const data = doc.data();
 
-    const leaderboard = [];
+      return {
+        id: doc.id,
+        name: data.name || "Unknown",
+        points: data.totalScore || 0, // ✅ default 0
+      };
+    });
 
-    for (const doc of attemptsSnap.docs) {
-      const attempt = doc.data();
-      // Fetch user's name from Firestore
-      const userSnap = await db
-        .collection("users")
-        .doc(attempt.userId)
-        .get();
-      const userName = userSnap.exists ? userSnap.data().name : "Unknown";
+    // ✅ Sort descending
+    leaderboard.sort((a, b) => b.points - a.points);
 
-      leaderboard.push({
-        name: userName,
-        score: attempt.score,
-        correctCount: attempt.correctCount,
-        submittedAt: attempt.submittedAt,
-      });
-    }
+    return res.json({
+      success: true,
+      leaderboard,
+    });
 
-    return res.json({ success: true, weekId, leaderboard });
   } catch (err) {
-    console.error("❌ GET /challenge/leaderboard error:", err.message);
-    return res.status(500).json({ error: "Server error" });
+    console.error("❌ Leaderboard error:", err.message);
+    return res.status(500).json({ error: "Failed to fetch leaderboard" });
   }
-});
-router.get("/generate-now", async (req, res) => {
-  await generateWeeklyChallenge();
-  res.json({ success: true, message: "Challenge generated!" });
 });
 
 

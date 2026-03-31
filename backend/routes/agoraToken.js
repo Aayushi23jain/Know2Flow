@@ -24,7 +24,7 @@ router.post("/generate-token", (req, res) => {
 
     console.log("Backend AppID:", appID);
 
-    const role = RtcRole.PUBLISHER;
+    const role = (uid === 999 || uid === 1010) ? RtcRole.PUBLISHER : RtcRole.PUBLISHER;
     const expirationTimeInSeconds = 3600;
     const currentTimestamp = Math.floor(Date.now() / 1000);
     const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
@@ -33,7 +33,7 @@ router.post("/generate-token", (req, res) => {
   appID,
   appCertificate,
   channelName,
-  uid,
+  Number(uid),
   role,
   privilegeExpiredTs
 );
@@ -47,4 +47,3 @@ router.post("/generate-token", (req, res) => {
 });
 
 export default router;
-

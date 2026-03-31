@@ -2,12 +2,14 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 export default function Challenge() {
-  const { userId } = useParams();
+  // const { userId } = useParams();
+  const userId = localStorage.getItem("userId");
   const navigate = useNavigate();
 
   // ── State Management ────────────────────────────────────────────────────────
   const [isStarted, setIsStarted] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(3600); // 1 hour
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(1200);
   const [selectedOption, setSelectedOption] = useState(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
 
@@ -94,13 +96,30 @@ export default function Challenge() {
     }));
 
     try {
+      setIsSubmitting(true);
       const res = await fetch("http://localhost:5000/challenge/submit", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
-      });
-      const data = await res.json();
+  method: "POST",
+  credentials: "include",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ answers }),
+});
+
+const data = await res.json();
+
+if (!res.ok) {
+  // ✅ Handle already submitted case
+  if (data.error === "Already submitted this week's challenge") {
+    setResult({
+      score: data.score,
+      alreadyLoaded: true,
+    });
+    setAlreadyAttempted(true);
+    return;
+  }
+
+  throw new Error(data.error || "Submission failed");
+}
+      
       setResult(data);
       setAlreadyAttempted(true);
     } catch (err) {
@@ -144,7 +163,15 @@ export default function Challenge() {
           <div className="flex-1 text-center">
             <div
               className="text-2xl font-bold text-orange-400 cursor-pointer inline-block"
-              onClick={() => navigate(`/dashboard/${userId}`)}
+              // onClick={() => navigate(`/dashboard/${userId}`)}
+              onClick={() => {
+  if (userId) {
+    navigate(`/dashboard/${userId}`);
+  } else {
+    navigate("/login");
+  }
+}}
+
             >
               Know2Flow
             </div>
@@ -367,7 +394,9 @@ export default function Challenge() {
                             : "bg-green-500 text-black hover:bg-green-400"
                         }`}
                       >
-                        {currentQuestionIndex < challengeSet.length - 1 ? "NEXT QUESTION" : "SUBMIT CHALLENGE"}
+                        {currentQuestionIndex < challengeSet.length - 1 ? "NEXT QUESTION" : isSubmitting
+    ? "SUBMITTING..."
+    : "SUBMIT CHALLENGE"}
                       </button>
                     ) : (
                       <button

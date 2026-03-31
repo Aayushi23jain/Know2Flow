@@ -35,39 +35,54 @@ export default function Profile() {
   const [feedbacks, setFeedbacks] = useState([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
   const [showAllFeedbacks, setShowAllFeedbacks] = useState(false);
-  // Add this state to your Profile component
-const [averageRating, setAverageRating] = useState(0);
+  const [averageRating, setAverageRating] = useState(0);
+  const [currentUser, setCurrentUser] = useState(null);
 
-useEffect(() => {
-  if (!userId) return;
 
-  const ratingsRef = collection(db, "users", userId, "ratings");
-  
-  // Use onSnapshot for real-time updates or getDocs for one-time fetch
-  const unsubscribe = onSnapshot(ratingsRef, (snapshot) => {
-    if (snapshot.empty) {
-      setAverageRating(0);
-      return;
-    }
+  useEffect(() => {
+  const auth = getAuth();
 
-    const ratings = snapshot.docs.map(doc => doc.data().rating || 0);
-    const total = ratings.reduce((acc, curr) => acc + curr, 0);
-    const avg = total / ratings.length;
-    
-    setAverageRating(avg);
+  const unsubscribe = auth.onAuthStateChanged((user) => {
+    setCurrentUser(user);
   });
 
   return () => unsubscribe();
-}, [userId]);
-// 1. Calculate the numeric value
-// Locate this block near the top of your component
-// This replaces the old numericAvg/displayAvg block
-const roundedAvg = Math.round(averageRating);
-const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
+}, []);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    const ratingsRef = collection(db, "users", userId, "ratings");
+
+    // Use onSnapshot for real-time updates or getDocs for one-time fetch
+    const unsubscribe = onSnapshot(ratingsRef, (snapshot) => {
+      if (snapshot.empty) {
+        setAverageRating(0);
+        return;
+      }
+
+      const ratings = snapshot.docs.map((doc) => doc.data().rating || 0);
+      const total = ratings.reduce((acc, curr) => acc + curr, 0);
+      const avg = total / ratings.length;
+
+      setAverageRating(avg);
+    });
+
+    return () => unsubscribe();
+  }, [userId]);
+  // 1. Calculate the numeric value
+  // Locate this block near the top of your component
+  // This replaces the old numericAvg/displayAvg block
+  const roundedAvg = Math.round(averageRating);
+  const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
   const handleVideoCall = async () => {
     console.log("In video call handle");
     try {
-      const currentUser = getAuth().currentUser;
+      // const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+  alert("User not authenticated yet");
+  return;
+}
 
       if (!currentUser) {
         alert("You must be logged in to make a call");
@@ -113,16 +128,40 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
 
   useEffect(() => {
     if (!userId) return;
+
     setLoadingFeedbacks(true);
-    const feedbackRef = collection(db, "users", userId, "feedbacks");
-    const q = query(feedbackRef, orderBy("createdAt", "desc"));
-    getDocs(q)
-      .then((snap) => {
-        const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    const fetchFeedbacks = async () => {
+      try {
+        const feedbackRef = collection(db, "users", userId, "feedbacks");
+        const q = query(feedbackRef, orderBy("createdAt", "desc"));
+        const snap = await getDocs(q);
+
+        const data = await Promise.all(
+          snap.docs.map(async (docSnap) => {
+            const fb = { id: docSnap.id, ...docSnap.data() };
+
+            if (fb.givenById) {
+              const senderSnap = await getDoc(doc(db, "users", fb.givenById));
+              if (senderSnap.exists()) {
+                fb.givenByName =
+                  senderSnap.data().name || fb.givenByName || "Anonymous";
+              }
+            }
+
+            return fb;
+          })
+        );
+
         setFeedbacks(data);
-      })
-      .catch((err) => console.error("Failed to fetch feedbacks:", err))
-      .finally(() => setLoadingFeedbacks(false));
+      } catch (err) {
+        console.error("Failed to fetch feedbacks:", err);
+      } finally {
+        setLoadingFeedbacks(false);
+      }
+    };
+
+    fetchFeedbacks();
   }, [userId]);
 
   useEffect(() => {
@@ -159,19 +198,18 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
         // if (activeSessions.includes(userId)) {
         //   setSessionActive(true);
 
-          const sessionEndInitiator = data.sessionEndInitiator || {};
+        const sessionEndInitiator = data.sessionEndInitiator || {};
 
-          if (activeSessions.includes(userId)) {
-            setSessionActive(true);
+        if (activeSessions.includes(userId)) {
+          setSessionActive(true);
 
-            // ✅ ONLY first user sees waiting
-            if (
-              sessionEndCount[userId] === 1 &&
-              sessionEndInitiator[userId] === currentUser.uid
-            ) {
-              setWaitingEnd(true);
-            }
-          
+          // ✅ ONLY first user sees waiting
+          if (
+            sessionEndCount[userId] === 1 &&
+            sessionEndInitiator[userId] === currentUser.uid
+          ) {
+            setWaitingEnd(true);
+          }
         } else if (receivedRequests.includes(userId)) {
           setHasReceivedRequest(true);
         } else if (sentRequests.includes(userId)) {
@@ -189,19 +227,27 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
       .catch((e) => setError(e.message || "Failed to load"))
       .finally(() => setLoading(false));
 
-    return () => { unsubscribeAuth();
-    if (unsubscribeFirestore) unsubscribeFirestore();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeFirestore) unsubscribeFirestore();
     };
   }, [userId]);
 
   const handleSendRequest = async () => {
     try {
-      const currentUser = getAuth().currentUser;
+      // const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+  alert("User not authenticated yet");
+  return;
+}
 
       if (!currentUser) {
         alert("You must be logged in");
         return;
       }
+
+      console.log("Current User:", currentUser?.uid);
+      console.log("Target User:", userId);
 
       if (currentUser.uid === userId) {
         alert("You cannot send request to yourself");
@@ -258,7 +304,11 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
 
   const handleAcceptRequest = async () => {
     try {
-      const currentUser = getAuth().currentUser;
+      // const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+  alert("User not authenticated yet");
+  return;
+}
 
       if (!currentUser) {
         alert("Login required");
@@ -316,7 +366,11 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
 
   const handleEndSession = async () => {
     try {
-      const currentUser = getAuth().currentUser;
+      // const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+  alert("User not authenticated yet");
+  return;
+}
       if (!currentUser) return;
 
       const currentRef = doc(db, "users", currentUser.uid);
@@ -360,13 +414,13 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
         tokens: currentTokens + 1,
         activeSessions: arrayRemove(userId),
         // ✅ CLEAN PROPERLY
-  sentRequestCount: 0,
-  sentRequests: [],
+        sentRequestCount: 0,
+        sentRequests: [],
 
-  [`sessionEndCount.${userId}`]: deleteField(),
-  [`sessionEndInitiator.${userId}`]: deleteField(),
-  [`sessionEndCount.${currentUser.uid}`]: deleteField(),
-  [`sessionEndInitiator.${currentUser.uid}`]: deleteField(),
+        [`sessionEndCount.${userId}`]: deleteField(),
+        [`sessionEndInitiator.${userId}`]: deleteField(),
+        [`sessionEndCount.${currentUser.uid}`]: deleteField(),
+        [`sessionEndInitiator.${currentUser.uid}`]: deleteField(),
       });
 
       await updateDoc(otherRef, {
@@ -387,39 +441,40 @@ const displayAvg = averageRating > 0 ? averageRating.toFixed(1) : null;
   };
 
   const handleUndoRequest = async () => {
-  try {
-    const currentUser = getAuth().currentUser;
+    try {
+      // const currentUser = getAuth().currentUser;
+      if (!currentUser) {
+  alert("User not authenticated yet");
+  return;
+}
 
-    if (!currentUser) {
-      alert("Login required");
-      return;
+      if (!currentUser) {
+        alert("Login required");
+        return;
+      }
+
+      const senderRef = doc(db, "users", currentUser.uid);
+      const receiverRef = doc(db, "users", userId);
+
+      // ✅ Remove from receiver's receivedRequests
+      await updateDoc(receiverRef, {
+        receivedRequests: arrayRemove(currentUser.uid),
+      });
+
+      // ✅ Remove from sender
+      await updateDoc(senderRef, {
+        sentRequests: arrayRemove(userId),
+        sentRequestCount: 0,
+      });
+
+      setRequestSent(false);
+
+      alert("Request withdrawn successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Error undoing request: " + error.message);
     }
-
-    const senderRef = doc(db, "users", currentUser.uid);
-    const receiverRef = doc(db, "users", userId);
-
-    // ✅ Remove from receiver's receivedRequests
-    await updateDoc(receiverRef, {
-      receivedRequests: arrayRemove(currentUser.uid),
-    });
-
-    // ✅ Remove from sender
-    await updateDoc(senderRef, {
-      sentRequests: arrayRemove(userId),
-      sentRequestCount: 0,
-    });
-
-    setRequestSent(false);
-
-    alert("Request withdrawn successfully!");
-
-  } catch (error) {
-    console.error(error);
-    alert("Error undoing request: " + error.message);
-  }
-};
-
-
+  };
 
   if (loading)
     return (
@@ -482,32 +537,30 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
 
           {/* Average star rating in header */}
           {/* Average star rating in header */}
-<div className="flex items-center gap-1 ml-4">
-  {[1, 2, 3, 4, 5].map((star) => (
-    <span
-      key={star}
-      className={`text-2xl ${
-        star <= roundedAvg ? "text-yellow-400" : "text-gray-600"
-      }`}
-    >
-      ★
-    </span>
-  ))}
-  {displayAvg ? (
-    <span className="ml-2 text-sm text-gray-400">
-      
-    </span>
-  ) : (
-    <span className="ml-2 text-sm text-gray-500"></span>
-  )}
-</div>
+          <div className="flex items-center gap-1 ml-4">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <span
+                key={star}
+                className={`text-2xl ${
+                  star <= roundedAvg ? "text-yellow-400" : "text-gray-600"
+                }`}
+              >
+                ★
+              </span>
+            ))}
+            {displayAvg ? (
+              <span className="ml-2 text-sm text-gray-400"></span>
+            ) : (
+              <span className="ml-2 text-sm text-gray-500"></span>
+            )}
+          </div>
 
-          <img
+          {/* <img
             src="/medal.png"
             alt="Achievement Badge"
             title="Achievement Badge"
             className="absolute top-12 right-8 w-24 h-24 object-contain opacity-95"
-          />
+          /> */}
         </div>
 
         {/* CONTENT */}
@@ -516,7 +569,10 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
             <h3 className="font-semibold text-gray-300">Teach Skills</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {(user.teachSkills || []).map((s, i) => (
-                <span key={i} className="bg-gray-800/80 px-3 py-1 rounded-full text-sm">
+                <span
+                  key={i}
+                  className="bg-gray-800/80 px-3 py-1 rounded-full text-sm"
+                >
                   {s}
                 </span>
               ))}
@@ -527,7 +583,10 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
             <h3 className="font-semibold text-gray-300">Learn Skills</h3>
             <div className="mt-3 flex flex-wrap gap-2">
               {(user.learnSkills || []).map((s, i) => (
-                <span key={i} className="bg-gray-800/80 px-3 py-1 rounded-full text-sm">
+                <span
+                  key={i}
+                  className="bg-gray-800/80 px-3 py-1 rounded-full text-sm"
+                >
                   {s}
                 </span>
               ))}
@@ -536,45 +595,45 @@ shadow-[0_6px_16px_rgba(0,0,0,0.45)]"
 
           {/* Feedbacks section */}
           <div className="mt-8">
-  <h3 className="font-semibold text-gray-300 mb-3">Feedback Received</h3>
+            <h3 className="font-semibold text-gray-300 mb-3">
+              Feedback Received
+            </h3>
 
-  {loadingFeedbacks ? (
-    <div className="text-gray-500 text-sm">Loading feedbacks...</div>
-  ) : feedbacks.length === 0 ? (
-    <div className="text-gray-500 text-sm">No feedbacks yet.</div>
-  ) : (
-    <div className="space-y-4">
+            {loadingFeedbacks ? (
+              <div className="text-gray-500 text-sm">Loading feedbacks...</div>
+            ) : feedbacks.length === 0 ? (
+              <div className="text-gray-500 text-sm">No feedbacks yet.</div>
+            ) : (
+              <div className="space-y-4">
+                {/* Feedback list */}
+                {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map(
+                  (fb) => (
+                    <div
+                      key={fb.id}
+                      className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div>
+                        <div className="font-semibold text-yellow-300">
+                          {fb.givenByName || "Anonymous"}
+                        </div>
+                        <div className="text-gray-200 mt-1">{fb.text}</div>
+                      </div>
+                    </div>
+                  )
+                )}
 
-      
-      {/* Feedback list */}
-      {(showAllFeedbacks ? feedbacks : feedbacks.slice(0, 3)).map((fb) => (
-        <div
-          key={fb.id}
-          className="bg-gray-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <div className="font-semibold text-yellow-300">
-              {fb.givenByName || "Anonymous"}
-            </div>
-            <div className="text-gray-200 mt-1">{fb.text}</div>
+                {/* Show "Show more" button if needed */}
+                {feedbacks.length > 3 && (
+                  <button
+                    className="text-yellow-400 text-sm mt-2"
+                    onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
+                  >
+                    {showAllFeedbacks ? "Show less" : "Show all"}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-         
-        </div>
-      ))}
-
-      {/* Show "Show more" button if needed */}
-      {feedbacks.length > 3 && (
-        <button
-          className="text-yellow-400 text-sm mt-2"
-          onClick={() => setShowAllFeedbacks(!showAllFeedbacks)}
-        >
-          {showAllFeedbacks ? "Show less" : "Show all"}
-        </button>
-      )}
-
-    </div>
-  )}
-</div>
 
           {/* ACTION BUTTONS */}
           <div className="mt-8 flex justify-between items-center">
@@ -592,17 +651,17 @@ transition"
                 Message
               </button>
               <button
-  className={`px-5 py-2 rounded-full border transition
+                className={`px-5 py-2 rounded-full border transition
   ${
     sessionActive
       ? "bg-gradient-to-r from-yellow-400/15 to-orange-400/15 border-yellow-400/30 text-white-300 hover:from-yellow-400/25 hover:to-orange-400/25 hover:text-yellow-200"
       : "bg-gray-700 border-gray-500 text-gray-400 cursor-not-allowed"
   }`}
-  onClick={handleVideoCall}
-  disabled={!sessionActive}
->
-  {sessionActive ? "Video Call" : "Video Call"}
-</button>
+                onClick={handleVideoCall}
+                disabled={!sessionActive}
+              >
+                {sessionActive ? "Video Call" : "Video Call"}
+              </button>
               {sessionActive ? (
                 <button
                   className="px-5 py-2 rounded-full
@@ -623,25 +682,25 @@ transition"
                   Accept Request
                 </button>
               ) : requestSent ? (
-  // ✅ NEW UNDO BUTTON
-  <button
-    className="px-5 py-2 rounded-full
+                // ✅ NEW UNDO BUTTON
+                <button
+                  className="px-5 py-2 rounded-full
     bg-red-600/20 border border-red-400 text-red-300
     hover:bg-red-600/30 transition"
-    onClick={handleUndoRequest}
-  >
-    Undo Request
-  </button>
-
-) : (
-  <button
-    className="px-5 py-2 rounded-full border transition
+                  onClick={handleUndoRequest}
+                >
+                  Undo Request
+                </button>
+              ) : (
+                <button
+                  className="px-5 py-2 rounded-full border transition
     bg-gradient-to-r from-yellow-400/15 to-orange-400/15 border-yellow-400/30 text-white-300 hover:from-yellow-400/25 hover:to-orange-400/25 hover:text-yellow-200"
-    onClick={handleSendRequest}
-  >
-    Send Request
-  </button>
-)}
+                  onClick={handleSendRequest}
+                  disabled={!currentUser}
+                >
+                  Send Request
+                </button>
+              )}
               <button
                 className="px-5 py-2 rounded-full
 bg-gradient-to-r from-yellow-400/15 to-orange-400/15

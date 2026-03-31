@@ -148,12 +148,6 @@ useEffect(() => {
           <span className="ml-4 font-semibold">{user?.name || "Chat"}</span>
         </div>
 
-        {/* <button
-          onClick={clearChat}
-          className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-500"
-        >
-          Clear Chat
-        </button> */}
       </div>
 
       {/* MESSAGES */}

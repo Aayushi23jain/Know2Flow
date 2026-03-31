@@ -1,6 +1,7 @@
+/* eslint-disable no-misleading-character-class */
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { doc, onSnapshot, updateDoc, getDoc } from "firebase/firestore";
+import { updateDoc, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import { io } from "socket.io-client";
@@ -10,222 +11,178 @@ let AgoraRTC = null;
 export default function VideoCall() {
   const navigate = useNavigate();
   const { channelName, callId } = useParams();
+  const auth = getAuth();
+  const currentUser = auth.currentUser;
+  const myName = currentUser?.displayName || "User";
 
   const localRef = useRef(null);
   const remoteRef = useRef(null);
   const clientRef = useRef(null);
   const localTracksRef = useRef(null);
-  const lastTextRef = useRef("");
-// const [remoteUid, setRemoteUid] = useState(null);
+  const socketRef = useRef(null);
+  const botStartedRef = useRef(false);
+
   const [joined, setJoined] = useState(false);
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
-  const [error, setError] = useState(null);
   const [callDuration, setCallDuration] = useState(0);
   const [captions, setCaptions] = useState("");
-  const [listening, setListening] = useState(false);
-const auth = getAuth();
+  const [sttActive, setSttActive] = useState(false);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false); // Initially set to false
+  const [otherUserId, setOtherUserId] = useState(null);
 
-  const currentUser = auth.currentUser;
-  const myName = currentUser?.displayName || "User"; // Now it's defined globally for this component
-const socketRef = useRef(null);
+  const captionTimeoutRef = useRef(null);
+  const captionsEnabledRef = useRef(false);
+  const lastCaptionRef = useRef("");
+  useEffect(() => {
+    captionsEnabledRef.current = captionsEnabled;
+  }, [captionsEnabled]);
+
   const APP_ID = import.meta.env.VITE_AGORA_APP_ID;
-// VideoCall.jsx
-useEffect(() => {
-  if (!channelName) return;
-
-  const socket = io("http://localhost:5000", { withCredentials: true });
-  socketRef.current = socket;
-
-  socket.on("connect", () => {
-    console.log("✅ Socket Connected:", socket.id);
-    socket.emit("join-channel", channelName);
-  });
-
-  // Listener logic
-  const handleReceive = (data) => {
-    const isMe = data.senderId === socket.id;
-    const name = isMe ? "You" : data.userName;
-    setCaptions(`${name}: ${data.text}`);
+  const normalizeCaption = (text) => {
+    return text
+      .toLowerCase()
+      .replace(/[^a-z0-9\u0900-\u097F\s]/gi, "") // remove symbols
+      .replace(/\s+/g, " ")
+      .trim();
   };
 
-  socket.on("caption-receive", handleReceive);
+  const isSimilarCaption = (a, b) => {
+    if (!a || !b) return false;
 
-  return () => {
-    // CRITICAL: Clean up the specific listener and the socket
-    socket.off("caption-receive", handleReceive);
-    socket.disconnect();
-    socketRef.current = null;
+    const A = normalizeCaption(a);
+    const B = normalizeCaption(b);
+
+    return A === B || A.includes(B) || B.includes(A) || levenshtein(A, B) <= 2;
   };
-}, [channelName]); // Only re-run if channelName changes
-useEffect(() => {
-  if (!channelName) return;
 
-  // ONE connection, not two!
-  const socket = io("http://localhost:5000", { withCredentials: true });
-  socketRef.current = socket;
+  // small edit-distance helper
+  const levenshtein = (a, b) => {
+    const matrix = Array.from({ length: b.length + 1 }, () => []);
 
-  socket.on("connect", () => {
-    console.log("✅ Single Socket Connected:", socket.id);
-    socket.emit("join-channel", channelName);
-  });
+    for (let i = 0; i <= b.length; i++) matrix[i][0] = i;
+    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
 
-  const handleReceive = (data) => {
-    // Check if the sender is NOT me
-    // We check against the current socket's actual ID
-    if (data.senderId === socket.id) {
-      console.log("☁️ Ignoring my own reflection");
-      return;
+    for (let i = 1; i <= b.length; i++) {
+      for (let j = 1; j <= a.length; j++) {
+        matrix[i][j] =
+          b[i - 1] === a[j - 1]
+            ? matrix[i - 1][j - 1]
+            : Math.min(
+                matrix[i - 1][j - 1] + 1,
+                matrix[i][j - 1] + 1,
+                matrix[i - 1][j] + 1
+              );
+      }
     }
 
-    console.log("📩 Received from partner:", data);
-    setCaptions(`${data.userName}: ${data.text}`);
-
-    // const hideTimer = setTimeout(() => {
-    //   setCaptions("");
-    // }, 4000);
+    return matrix[b.length][a.length];
   };
-
-  socket.on("caption-receive", handleReceive);
-
-  return () => {
-    socket.off("caption-receive", handleReceive);
-    socket.disconnect();
-    socketRef.current = null;
-  };
-}, [channelName]); // Keep this as the only dependency
-  /* ---------------- CALL TIMER ---------------- */
-  useEffect(() => {
-    const timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  const formatTime = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(
-      2,
-      "0"
-    )}:${String(s).padStart(2, "0")}`;
-  };
-
-  /* ---------------- TOGGLE MIC ---------------- */
-  const toggleMic = async () => {
-    if (!localTracksRef.current) return;
-    const audioTrack = localTracksRef.current[0];
-    await audioTrack.setEnabled(!micOn);
-    setMicOn(!micOn);
-  };
-
-  /* ---------------- TOGGLE CAMERA ---------------- */
-  const toggleCamera = async () => {
-    if (!localTracksRef.current) return;
-    const videoTrack = localTracksRef.current[1];
-    await videoTrack.setEnabled(!cameraOn);
-    setCameraOn(!cameraOn);
-  };
-
-  /* ---------------- END CALL ---------------- */
-  const endCall = async () => {
-    try {
-      if (localTracksRef.current) {
-        localTracksRef.current[0]?.close();
-        localTracksRef.current[1]?.close();
-      }
-      if (clientRef.current) {
-        await clientRef.current.leave();
-        setJoined(false);
-      }
-
-      const callDocRef = doc(db, "calls", callId);
-      const callSnap = await getDoc(callDocRef);
-      const data = callSnap.data();
-      const auth = getAuth();
-      const currentUserId = auth.currentUser.uid;
-      const otherUserId = data.from === currentUserId ? data.to : data.from;
-// const myName = currentUser?.displayName || "User";
-      await updateDoc(callDocRef, { status: "ended" });
-      navigate(`/profile/${otherUserId}`);
-    } catch (err) {
-      console.error("Error ending call:", err);
-    }
-  };
-
-  /* ---------------- UPDATED SPEECH RECOGNITION ---------------- */
-useEffect(() => {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition || !joined) return;
-
-  const recognition = new SpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-
-  // Use a ref-like variable to track the last sent string within this effect
-  // let lastText = "";
-
-  recognition.onstart = () => {
-    setListening(true);
-    console.log("Captions active");
-  };
-
-// Inside your Speech Recognition useEffect
-recognition.onresult = (event) => {
-  const latestResultIndex = event.results.length - 1;
-  const transcript = event.results[latestResultIndex][0].transcript.trim();
-
-  // Use the REF here instead of a local variable
-  if (transcript !== lastTextRef.current && transcript !== "") {
-    lastTextRef.current= transcript; // Update the ref
-
-    if (socketRef.current?.connected) {
-      console.log("📤 Sending to Server:", transcript);
-      socketRef.current.emit("caption-send", {
-        channelName: channelName, // The User1_User2 string
-        text: transcript,
-        userName: myName
+  /* --- 1. SHARED CLEANUP LOGIC --- */
+  const handleCleanup = async () => {
+    if (localTracksRef.current) {
+      localTracksRef.current.forEach((track) => {
+        track.stop();
+        track.close();
       });
+      localTracksRef.current = null;
     }
-  }
-};
 
-  recognition.onerror = (event) => {
-    console.error("Speech Error:", event.error);
-  };
+    if (clientRef.current) {
+      await clientRef.current.leave();
+      clientRef.current = null;
+    }
 
-  recognition.onend = () => {
-    setListening(false);
-    // Restart logic: as long as the call is active, keep listening
-    if (joined) {
-      try {
-        recognition.start();
-      } catch (e) {
-        console.warn("Recognition restart attempt failed:", e);
-      }
+    if (socketRef.current) {
+      socketRef.current.disconnect();
     }
   };
 
-  recognition.start();
-
-  return () => {
-    recognition.onend = null; // Important: prevent restart loop on unmount
-    recognition.stop();
-  };
-}, [joined, channelName,myName]);
-  /* ---------------- INITIALIZE CALL ---------------- */
+  /* --- 2. GET OTHER USER ID --- */
   useEffect(() => {
-    if (!APP_ID || !channelName) {
-      setError("Missing Agora App ID or Channel Name");
-      return;
-    }
+    const fetchCallData = async () => {
+      try {
+        const snap = await getDoc(doc(db, "calls", callId));
+        const data = snap.data();
+        if (!data) return;
 
-    let client;
+        const otherId = data.from === currentUser.uid ? data.to : data.from;
+        setOtherUserId(otherId);
+      } catch (err) {
+        console.error("Error fetching call data:", err);
+      }
+    };
+
+    fetchCallData();
+  }, [callId, currentUser.uid]);
+
+  /* --- 3. SOCKET.IO SETUP --- */
+  useEffect(() => {
+    if (!channelName) return;
+
+    const socket = io("http://localhost:5000", { withCredentials: true });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      console.log("✅ Socket Connected:", socket.id);
+      socket.emit("join-channel", channelName);
+    });
+
+    socket.on("caption-receive", (data) => {
+      if (!captionsEnabledRef.current) return;
+
+      setCaptions(data.text);
+
+      if (captionTimeoutRef.current) clearTimeout(captionTimeoutRef.current);
+      captionTimeoutRef.current = setTimeout(() => setCaptions(""), 4000);
+    });
+
+    socket.on("call-end", async () => {
+      console.log(
+        "☎️ Remote user ended the call. Redirecting to their profile..."
+      );
+      await handleCleanup();
+      if (otherUserId) navigate(`/profile/${otherUserId}`);
+      else navigate(-1);
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [channelName, captionsEnabled, otherUserId]);
+
+  /* --- 4. AGORA STT TRIGGER --- */
+  const startSTTBot = async () => {
+    if (botStartedRef.current) return;
+    try {
+      const callDoc = await getDoc(doc(db, "calls", callId));
+      const callData = callDoc.data();
+
+      if (callData.from !== currentUser.uid) {
+        setSttActive(true);
+        return;
+      }
+
+      botStartedRef.current = true;
+      const response = await fetch("http://localhost:5000/api/stt/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channelName }),
+      });
+
+      if (response.ok) setSttActive(true);
+    } catch (err) {
+      console.error("STT Trigger Error:", err);
+      botStartedRef.current = false;
+    }
+  };
+
+  /* --- 5. INITIALIZE AGORA --- */
+  useEffect(() => {
+    if (!APP_ID || !channelName) return;
+
     const initializeCall = async () => {
       try {
-        const auth = getAuth();
-        const currentUser = auth.currentUser;
-        if (!currentUser) throw new Error("User not authenticated");
-
         const uid = Number(
           currentUser.uid.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0)
         );
@@ -234,12 +191,101 @@ recognition.onresult = (event) => {
           const module = await import("agora-rtc-sdk-ng");
           AgoraRTC = module.default;
         }
-        if (clientRef.current) return;
 
-        client = AgoraRTC.createClient({ mode: "rtc", codec: "h264" });
+        const client = AgoraRTC.createClient({ mode: "rtc", codec: "h264" });
         clientRef.current = client;
 
-        const response = await fetch(
+        client.on("stream-message", async (botUid, data) => {
+          try {
+            let text = new TextDecoder("utf-8", { fatal: false }).decode(data);
+
+            // 🔥 STEP 1: REMOVE ZERO WIDTH + RTL MARKS (THIS FIXES ‏)
+            text = text.replace(
+              /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g,
+              ""
+            );
+
+            // 🔥 STEP 2: REMOVE CONTROL CHARACTERS
+            // eslint-disable-next-line no-control-regex
+            text = text.replace(/[\u0000-\u001F\u007F-\u009F]/g, " ");
+
+            // 🔥 STEP 3: REMOVE AGORA / STT JUNK WORDS
+            text = text.replace(
+              /\b(enus|hiin|transcribe\w*|caption|speech|zenus|agora|uid|jtranscribezen)\b/gi,
+              " "
+            );
+
+            // 🔥 STEP 4: REMOVE SYMBOL CLUSTERS (-ZZ, 3R8, etc.)
+            text = text.replace(/[-_]{2,}|[a-zA-Z]*\d+[a-zA-Z]*/g, " ");
+
+            // 🔥 STEP 5: KEEP ONLY REAL TEXT
+            // eslint-disable-next-line no-misleading-character-class
+            text = text.replace(/[^a-zA-Z\u0900-\u097F\s]/g, " ");
+
+            // 🔥 STEP 6: NORMALIZE SPACE
+            text = text.replace(/\s+/g, " ").trim();
+
+            // ❌ DROP BAD OUTPUT
+            if (!text || text.length < 3) return;
+            if (!/[a-zA-Z\u0900-\u097F]{3,}/.test(text)) return;
+
+            // 🔥 STEP 7: DUPLICATE CHECK (STRONG)
+            const norm = text.toLowerCase();
+            if (norm === (lastCaptionRef.current || "")) return;
+            lastCaptionRef.current = norm;
+
+            // 🔥 STEP 8: TRANSLATION (FIXED FLOW)
+            // 🔥 STEP 8: TRANSLATION (FIXED FLOW)
+            let finalText = text;
+
+            const isHindi = /[\u0900-\u097F]/.test(text);
+            const isEnglish = /^[a-zA-Z\s.,!?']+$/.test(text);
+
+            try {
+              if (text.length > 2 && (isHindi || isEnglish)) {
+                const res = await fetch("http://localhost:5000/api/translate", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ text }),
+                });
+
+                const data = await res.json();
+
+                if (data?.translated && data.translated.trim().length > 0) {
+                  finalText = data.translated;
+                }
+              }
+            } catch (e) {
+              console.error("Translation error:", e);
+            }
+
+            finalText = finalText
+              .replace(/\b(en|hi|us|in|j)\b/gi, "")
+              .replace(/‏|‎/g, "") // removes RTL marks
+              .replace(/\s+/g, " ")
+              .trim();
+            if (!finalText || finalText.length < 2) return;
+            if (finalText === captions) return;
+
+            setCaptions(finalText);
+
+            if (captionTimeoutRef.current)
+              clearTimeout(captionTimeoutRef.current);
+
+            captionTimeoutRef.current = setTimeout(() => {
+              setCaptions("");
+            }, 3000);
+
+            socketRef.current?.emit("caption-send", {
+              channelName,
+              userName: myName,
+              text: finalText,
+            });
+          } catch (err) {
+            console.error("caption error:", err);
+          }
+        });
+        const tokenRes = await fetch(
           "http://localhost:5000/api/agora/generate-token",
           {
             method: "POST",
@@ -247,164 +293,136 @@ recognition.onresult = (event) => {
             body: JSON.stringify({ channelName, uid }),
           }
         );
-        const { token } = await response.json();
+        const { token } = await tokenRes.json();
 
         await client.join(APP_ID, channelName, token, uid);
 
-        const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
-          {
-            encoderConfig: "480p_1",
-            AEC: true,
-            AGC: true,
-            ANS: true,
-          },
-          {
-            encoderConfig: {
-              width: 1280,
-              height: 720,
-              frameRate: 30,
-              bitrateMin: 1200,
-              bitrateMax: 2500,
-            },
-          }
-        );
+        const [audioTrack, videoTrack] =
+          await AgoraRTC.createMicrophoneAndCameraTracks(
+            { AEC: true, ANS: false, AGC: true },
+            { encoderConfig: "720p_1" }
+          );
+        localTracksRef.current = [audioTrack, videoTrack];
 
-        localTracksRef.current = tracks;
-        await client.publish(tracks);
-        tracks[1].play(localRef.current);
-        setJoined(true); // mark call ready
+        videoTrack.play(localRef.current);
+        await client.publish([audioTrack, videoTrack]);
+
+        setJoined(true);
+        setTimeout(() => startSTTBot(), 5000);
 
         client.on("user-published", async (user, mediaType) => {
-  await client.subscribe(user, mediaType);
-
-  // ❗ VERY IMPORTANT
-  if (user.uid === client.uid) return;
-
-  if (mediaType === "video" && user.videoTrack) {
-    remoteRef.current.innerHTML = "";
-    user.videoTrack.play(remoteRef.current);
-  }
-
-  if (mediaType === "audio" && user.audioTrack) {
-    user.audioTrack.play();
-  }
-});
-
-        client.on("user-unpublished", (user) => {
-          if (user.videoTrack) remoteRef.current.innerHTML = "";
+          await client.subscribe(user, mediaType);
+          if (mediaType === "video") user.videoTrack.play(remoteRef.current);
+          if (mediaType === "audio") user.audioTrack.play();
         });
       } catch (err) {
-        console.error("Error initializing call:", err);
-        setError(err.message || "Failed to start video call");
+        console.error("Call Init Error:", err);
       }
     };
 
     initializeCall();
-
-    return async () => {
-      try {
-        if (localTracksRef.current) {
-          localTracksRef.current[0]?.close();
-          localTracksRef.current[1]?.close();
-        }
-        if (clientRef.current) {
-          await clientRef.current.leave();
-          clientRef.current.removeAllListeners();
-          clientRef.current = null;
-        }
-      } catch (err) {
-        console.error("Cleanup error:", err);
-      }
+    return () => {
+      handleCleanup();
     };
   }, [APP_ID, channelName]);
 
-  /* ---------------- FIREBASE LISTENER ---------------- */
+  /* --- 6. FIRESTORE LISTENER (IN CASE REMOTE ENDS CALL) --- */
   useEffect(() => {
-    if (!callId) return;
-    const callDocRef = doc(db, "calls", callId);
-    const unsubscribe = onSnapshot(callDocRef, (docSnap) => {
-      const data = docSnap.data();
+    const unsub = onSnapshot(doc(db, "calls", callId), (snap) => {
+      const data = snap.data();
       if (data?.status === "ended") {
-        const auth = getAuth();
-        const currentUserId = auth.currentUser.uid;
-        const otherUserId = data.from === currentUserId ? data.to : data.from;
-        navigate(`/profile/${otherUserId}`);
+        const otherId = data.from === currentUser.uid ? data.to : data.from;
+        handleCleanup();
+        navigate(`/profile/${otherId}`);
       }
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, [callId]);
 
-  return (
-    <div className="h-screen w-screen bg-gradient-to-br from-black via-gray-900 to-black text-white relative overflow-hidden">
-      {/* Remote Video */}
-      <div className="absolute inset-0">
-        {error ? (
-          <div className="h-full flex items-center justify-center text-red-400 text-lg font-semibold">
-            {error}
-          </div>
-        ) : (
-          <div
-            ref={remoteRef}
-            className="w-full h-full bg-black object-cover"
-          />
-        )}
-      </div>
+  /* --- 7. HELPERS & UI --- */
+  useEffect(() => {
+    const timer = setInterval(() => setCallDuration((prev) => prev + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-      {/* Top Bar */}
-      <div className="absolute top-0 w-full px-8 py-5 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
-        <div className="flex flex-col">
-          <span className="text-lg font-semibold tracking-wide">Know2Flow</span>
-          <span className="text-xs text-gray-400">Secure Video Call</span>
+  const formatTime = (s) => new Date(s * 1000).toISOString().substr(11, 8);
+
+  const endCall = async () => {
+    socketRef.current?.emit("call-end", { channelName });
+    if (callId) await updateDoc(doc(db, "calls", callId), { status: "ended" });
+    await handleCleanup();
+    if (otherUserId) navigate(`/profile/${otherUserId}`);
+    else navigate(-1);
+  };
+
+  return (
+    <div className="h-screen w-screen bg-black text-white relative overflow-hidden">
+      <div ref={remoteRef} className="w-full h-full bg-gray-950" />
+
+      <div className="absolute top-0 w-full p-6 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent">
+        <div>
+          <h2 className="text-xl font-bold">Know2Flow</h2>
+          <p className="text-xs text-green-400">
+            {sttActive ? "● Live Captions Active" : "○ Initializing..."}
+          </p>
         </div>
-        <div className="bg-white/10 px-4 py-1 rounded-full text-sm font-mono tracking-wider">
+        <div className="bg-white/10 px-4 py-1 rounded-full font-mono">
           {formatTime(callDuration)}
         </div>
       </div>
 
-      {/* Status */}
-      <div className="absolute top-20 left-8 px-4 py-2 bg-black/50 rounded-lg text-sm">
-        {joined ? "✅ Joined" : "❌ Not Joined"} |{" "}
-        {listening ? "🎙️ Listening" : "🛑 Not Listening"}
-      </div>
-
-      {/* Local Video (Picture-in-Picture) */}
-      <div className="absolute bottom-32 right-8 w-44 h-64 bg-gray-900/60 backdrop-blur-lg rounded-2xl overflow-hidden border border-white/10 shadow-2xl transition-all duration-300 hover:scale-105">
+      <div className="absolute bottom-32 right-8 w-48 h-64 bg-gray-900 rounded-2xl overflow-hidden border border-white/10 shadow-2xl">
         <div ref={localRef} className="w-full h-full object-cover" />
       </div>
-{/* Captions Box */}
-<div className="absolute bottom-40 left-1/2 -translate-x-1/2 z-[10000] pointer-events-none">
-  {captions && (
-    <div className="bg-black/80 px-6 py-3 rounded-xl border border-white/20 shadow-2xl animate-pulse">
-       <p className="text-white text-lg font-medium">{captions}</p>
-    </div>
-  )}
-</div>
 
-      {/* Bottom Controls */}
-      <div className="absolute bottom-0 w-full py-8 flex justify-center items-center gap-8 bg-gradient-to-t from-black/90 to-transparent">
+      <div className="absolute bottom-44 left-1/2 -translate-x-1/2 z-50 pointer-events-none w-full max-w-2xl text-center px-4">
+        {captionsEnabled && captions?.length > 0 && (
+          <div className="bg-black/80 backdrop-blur-md px-6 py-3 rounded-xl border border-white/20 inline-block shadow-xl">
+            <p className="text-white text-lg font-medium">{captions}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="absolute bottom-8 w-full flex justify-center items-center gap-6 py-4">
         <button
-          onClick={toggleMic}
-          className={`w-16 h-16 rounded-full flex items-center justify-center text-xl transition-all duration-300 shadow-lg ${
-            micOn
-              ? "bg-white/10 hover:bg-white/20"
-              : "bg-red-600 hover:bg-red-700 scale-110"
+          onClick={() => {
+            localTracksRef.current[0].setEnabled(!micOn);
+            setMicOn(!micOn);
+          }}
+          className={`p-5 rounded-full ${micOn ? "bg-white/10" : "bg-red-600"}`}
+        >
+          {micOn ? "🎙️" : "🔇"}
+        </button>
+
+        <button
+          onClick={() => {
+            localTracksRef.current[1].setEnabled(!cameraOn);
+            setCameraOn(!cameraOn);
+          }}
+          className={`p-5 rounded-full ${
+            cameraOn ? "bg-white/10" : "bg-red-600"
           }`}
         >
-          🎤
+          {cameraOn ? "📷" : "🚫"}
         </button>
+
         <button
-          onClick={toggleCamera}
-          className={`w-16 h-16 rounded-full flex items-center justify-center text-xl transition-all duration-300 shadow-lg ${
-            cameraOn
-              ? "bg-white/10 hover:bg-white/20"
-              : "bg-red-600 hover:bg-red-700 scale-110"
+          onClick={() => {
+            setCaptionsEnabled((prev) => {
+              if (prev === true) setCaptions("");
+              return !prev;
+            });
+          }}
+          className={`p-5 rounded-full font-bold ${
+            captionsEnabled ? "bg-green-500" : "bg-gray-600"
           }`}
         >
-          📷
+          CC
         </button>
+
         <button
           onClick={endCall}
-          className="w-20 h-20 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center text-2xl shadow-2xl transition-all duration-300 hover:scale-110 active:scale-95"
+          className="p-6 rounded-full bg-red-600 hover:scale-110 transition-transform"
         >
           ❌
         </button>

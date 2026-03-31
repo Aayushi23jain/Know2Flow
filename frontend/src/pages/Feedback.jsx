@@ -99,10 +99,15 @@ export default function Feedback() {
       }
 
       const currentUserId = currentUser.uid;
-      const currentUserName =
-        currentUser.displayName ||
-        currentUser.email?.split("@")[0] ||
-        "Anonymous";
+
+const currentUserDoc = await getDoc(doc(db, "users", currentUserId));
+const currentUserData = currentUserDoc.exists() ? currentUserDoc.data() : {};
+
+const currentUserName =
+  currentUserData.name ||
+  currentUser.displayName ||
+  "Anonymous";
+
 
       // Update rating
       const ratingRef = doc(db, "users", userId, "ratings", currentUserId);

@@ -6,13 +6,6 @@ const Home = () => {
 
   return (
     <div className="home">
-      {/* <nav className="navbar">
-        <h2>Know2Flow</h2>
-        <div>
-          <button onClick={() => navigate("/login")}>Login</button>
-          <button onClick={() => navigate("/signup")}>Signup</button>
-        </div>
-      </nav> */}
 
       <div className="hero">
         <h1>KNOW2FLOW</h1>
