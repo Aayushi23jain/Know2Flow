@@ -30,7 +30,7 @@ export default function Feedback() {
   useEffect(() => {
     setLoading(true);
     setError(null);
-    fetch(`http://localhost:5000/user/${userId}`)
+    fetch(`https://know2flow-1.onrender.com/user/${userId}`)
       .then((r) => (r.ok ? r.json() : Promise.reject("User not found")))
       .then((data) => setUser(data))
       .catch((e) => setError(e))

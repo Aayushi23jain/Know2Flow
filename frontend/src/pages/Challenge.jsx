@@ -32,7 +32,7 @@ export default function Challenge() {
 
   // ── Fetch weekly challenge on mount ────────────────────────────────────────
   useEffect(() => {
-    fetch("http://localhost:5000/challenge/weekly", {
+    fetch("https://know2flow-1.onrender.com/challenge/weekly", {
       credentials: "include", // sends session cookie — matches your auth
     })
       .then((r) => r.json())
@@ -97,7 +97,7 @@ export default function Challenge() {
 
     try {
       setIsSubmitting(true);
-      const res = await fetch("http://localhost:5000/challenge/submit", {
+      const res = await fetch("https://know2flow-1.onrender.com/challenge/submit", {
   method: "POST",
   credentials: "include",
   headers: { "Content-Type": "application/json" },

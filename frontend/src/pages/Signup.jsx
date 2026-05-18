@@ -51,7 +51,7 @@ export default function Signup() {
       setMessage("📧 Verification link sent! Please check your inbox.");
       setLoading(false);
 
-      const response = await fetch("http://localhost:5000/signup", {
+      const response = await fetch("https://know2flow-1.onrender.com/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

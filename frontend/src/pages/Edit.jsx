@@ -18,7 +18,7 @@ export default function EditProfile() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`http://localhost:5000/user/${userId}`)
+    fetch(`https://know2flow-1.onrender.com/user/${userId}`)
       .then((r) => r.json())
       .then((data) =>
         setForm({
@@ -36,7 +36,7 @@ export default function EditProfile() {
   const onSave = async () => {
     setSaving(true);
     try {
-      await fetch(`http://localhost:5000/user/${userId}`, {
+      await fetch(`https://know2flow-1.onrender.com/user/${userId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",

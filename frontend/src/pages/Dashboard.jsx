@@ -9,7 +9,7 @@ import {
   orderBy,
 } from "firebase/firestore";
 import { db } from "../firebase";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socketClient";
 
 export default function Dashboard() {
   const { userId: paramUserId } = useParams();
@@ -67,7 +67,7 @@ export default function Dashboard() {
     const savedId = localStorage.getItem("userId");
     if (savedId) setMeUid(savedId);
 
-    fetch("http://localhost:5000/user/me", { credentials: "include" })
+    fetch("https://know2flow-1.onrender.com/user/me", { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.userId) {
@@ -88,7 +88,7 @@ export default function Dashboard() {
       return;
     }
     setLoadingUser(true);
-    fetch(`http://localhost:5000/user/${userId}`, { credentials: "include" })
+    fetch(`https://know2flow-1.onrender.com/user/${userId}`, { credentials: "include" })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => setUser(data))
       .catch((err) => console.warn("Failed to fetch user:", err))
@@ -130,7 +130,7 @@ export default function Dashboard() {
   // 5. Socket.io Notifications
   useEffect(() => {
     if (!meUid) return;
-    socketRef.current = io("http://localhost:5000", { withCredentials: true });
+    socketRef.current = createSocket();
 
     socketRef.current.on("newMessageNotification", (data) => {
       setUnreadCounts((prev) => ({

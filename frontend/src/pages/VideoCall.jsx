@@ -4,7 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { updateDoc, doc, getDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socketClient";
 
 let AgoraRTC = null;
 
@@ -120,7 +120,7 @@ export default function VideoCall() {
   useEffect(() => {
     if (!channelName) return;
 
-    const socket = io("http://localhost:5000", { withCredentials: true });
+    const socket = createSocket();
     socketRef.current = socket;
 
     socket.on("connect", () => {
@@ -164,7 +164,7 @@ export default function VideoCall() {
       }
 
       botStartedRef.current = true;
-      const response = await fetch("http://localhost:5000/api/stt/start", {
+      const response = await fetch("https://know2flow-1.onrender.com/api/stt/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channelName }),
@@ -243,7 +243,7 @@ export default function VideoCall() {
 
             try {
               if (text.length > 2 && (isHindi || isEnglish)) {
-                const res = await fetch("http://localhost:5000/api/translate", {
+                const res = await fetch("https://know2flow-1.onrender.com/api/translate", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify({ text }),
@@ -286,7 +286,7 @@ export default function VideoCall() {
           }
         });
         const tokenRes = await fetch(
-          "http://localhost:5000/api/agora/generate-token",
+          "https://know2flow-1.onrender.com/api/agora/generate-token",
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

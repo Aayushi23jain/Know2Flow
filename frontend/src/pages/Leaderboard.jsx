@@ -11,7 +11,7 @@ export default function Leaderboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:5000/challenge/global-leaderboard", {
+    fetch("https://know2flow-1.onrender.com/challenge/global-leaderboard", {
       credentials: "include",
     })
       .then((res) => res.json())

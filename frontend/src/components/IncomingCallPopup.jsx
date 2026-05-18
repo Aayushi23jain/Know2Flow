@@ -12,7 +12,7 @@ import { db } from "../firebase";
 import { getAuth } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socketClient";
 import { useRef } from "react";
 export default function IncomingCallPopup() {
   const [incomingCall, setIncomingCall] = useState(null);
@@ -34,7 +34,7 @@ export default function IncomingCallPopup() {
     return () => unsubscribeAuth();
   }, [auth]);
 useEffect(() => {
-    const socket = io("http://localhost:5000", { withCredentials: true });
+    const socket = createSocket();
     socketRef.current = socket;
     return () => socket.disconnect();
   }, []);

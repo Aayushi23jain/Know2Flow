@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth } from "../firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
+import { apiCall } from "../utils/apiClient";
 
 export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
@@ -32,20 +33,10 @@ export default function Login() {
       }
 
       // 3️⃣ Backend login
-      const res = await fetch("http://localhost:5000/login", {
+      const data = await apiCall("/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ email, password }),
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.error || "Login failed");
-        setLoading(false);
-        return;
-      }
 
       localStorage.setItem("userId", data.userId);
       navigate(`/dashboard/${data.userId}`);

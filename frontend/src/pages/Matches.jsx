@@ -11,7 +11,7 @@ export default function Matches() {
   const [receivedRequests, setReceivedRequests] = useState([]);
 
   useEffect(() => {
-    fetch("http://localhost:5000/search-profiles", {
+    fetch("https://know2flow-1.onrender.com/search-profiles", {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },

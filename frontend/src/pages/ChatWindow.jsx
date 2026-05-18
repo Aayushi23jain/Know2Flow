@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { io } from "socket.io-client";
+import { createSocket } from "../utils/socketClient";
 import { db } from "../firebase";
 import { 
   collection, 
@@ -31,14 +31,14 @@ export default function ChatWindow({ userId: propUserId }) {
 
   /* ================= AUTH ================= */
   useEffect(() => {
-    fetch("http://localhost:5000/user/me", { credentials: "include" })
+    fetch("https://know2flow-1.onrender.com/user/me", { credentials: "include" })
       .then(r => r.ok ? r.json() : null)
       .then(d => d?.userId && setMeUid(d.userId));
   }, []);
 
   /* ================= LOAD CHAT USER ================= */
   useEffect(() => {
-    fetch(`http://localhost:5000/user/${userId}`)
+    fetch(`https://know2flow-1.onrender.com/user/${userId}`)
       .then(r => r.ok ? r.json() : null)
       .then(setUser);
   }, [userId]);
@@ -47,7 +47,7 @@ export default function ChatWindow({ userId: propUserId }) {
   useEffect(() => {
     if (!meUid) return;
 
-    socketRef.current = io("http://localhost:5000", { withCredentials: true });
+    socketRef.current = createSocket();
 
 
 
@@ -85,7 +85,7 @@ const sendMessage = async () => {
     receiverId: userId,
     text: text.trim(),
   });
-fetch(`http://localhost:5000/user/${userId}/addToChat`, { 
+fetch(`https://know2flow-1.onrender.com/user/${userId}/addToChat`, {
   method: "POST",
   credentials: "include",
 })
@@ -131,7 +131,7 @@ useEffect(() => {
     setMessages(prev => [...prev, msg]);
 
     // refresh chat list if needed
-    fetch("http://localhost:5000/user/me/chats", { credentials: "include" })
+    fetch("https://know2flow-1.onrender.com/user/me/chats", { credentials: "include" })
       .then(r => r.ok ? r.json() : [])
       .then(setChatUsers); // assuming you have state for chat list
   });

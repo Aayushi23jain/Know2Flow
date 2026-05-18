@@ -218,7 +218,7 @@ export default function Profile() {
       }); // ✅ CLOSE onSnapshot HERE
     });
 
-    fetch(`http://localhost:5000/user/${userId}`)
+    fetch(`https://know2flow-1.onrender.com/user/${userId}`)
       .then((r) => {
         if (!r.ok) throw new Error("User not found");
         return r.json();
@@ -791,7 +791,7 @@ transition"
                   setConfirmPopup({ open: false });
                   try {
                     const res = await fetch(
-                      `http://localhost:5000/user/${userId}/block`,
+                      `https://know2flow-1.onrender.com/user/${userId}/block`,
                       {
                         method: "POST",
                         credentials: "include",

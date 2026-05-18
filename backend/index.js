@@ -8,7 +8,7 @@ import http from "http";
 import { Server } from "socket.io";
 import cookieParser from "cookie-parser";
 
-// Route Imports
+// Routes
 import signupRoute from "./routes/signup.js";
 import loginRoute from "./routes/login.js";
 import searchProfilesRoute from "./routes/searchProfiles.js";
@@ -21,21 +21,40 @@ import challengeRoutes from "./routes/challenge.js";
 import sttRoute from "./routes/stt.js";
 import translateRoute from "./routes/translate.js";
 
-
-// import { startChallengeScheduler } from "./jobs/challengeScheduler.js";
-
 const app = express();
 
-// Middleware
-app.use(cors({
-  origin: "http://localhost:5173",
-  credentials: true,
-}));
+/* ---------------- FIXED CORS (IMPORTANT FOR FIREBASE + RENDER) ---------------- */
+
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "https://skillbarter-4dfe3.web.app",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow REST clients like Postman
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      console.log("❌ Blocked by CORS:", origin);
+      return callback(new Error("CORS not allowed"));
+    },
+    credentials: true, // ✅ FIXED: Changed to true to support cookies
+  })
+);
+
+/* ---------------- MIDDLEWARE ---------------- */
 app.use(bodyParser.json());
 app.use(cookieParser());
 app.use(express.json());
 
-// Routes
+/* ---------------- ROUTES ---------------- */
 app.use("/signup", signupRoute);
 app.use("/login", loginRoute);
 app.use("/search-profiles", searchProfilesRoute);
@@ -46,11 +65,18 @@ app.use("/challenge", challengeRoutes);
 app.use("/api/stt", sttRoute);
 app.use("/api/translate", translateRoute);
 
-// HTTP & Socket Server Setup
+/* ---------------- HEALTH CHECK (IMPORTANT FOR RENDER DEBUGGING) ---------------- */
+app.get("/", (req, res) => {
+  res.json({ status: "Know2Flow backend running 🚀" });
+});
+
+/* ---------------- HTTP SERVER ---------------- */
 const server = http.createServer(app);
+
+/* ---------------- SOCKET.IO ---------------- */
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -60,7 +86,7 @@ io.use(socketAuth);
 
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
-  
+
   registerChatHandlers(io, socket);
 
   socket.on("join-channel", (channelName) => {
@@ -68,32 +94,29 @@ io.on("connection", (socket) => {
     console.log(`📢 User ${socket.id} joined Room: ${channelName}`);
   });
 
-  // When a caption is sent from one user
   socket.on("caption-send", (data) => {
-    console.log(`📝 Caption from ${data.userName} in ${data.channelName}: ${data.text}`);
-
-    // BROADCAST: Send to everyone in the room EXCEPT the person who sent it
     socket.to(data.channelName).emit("caption-receive", {
-      text: data.text, // Only send the caption text, without the user name
-      senderId: data.senderId
+      text: data.text,
+      senderId: data.senderId,
     });
   });
+
   socket.on("call-status-update", (data) => {
     io.to(data.channelName).emit("call-status-update", data);
   });
 
- socket.on("disconnecting", () => {
-  // socket.rooms is a Set of all rooms the user is currently in
-  for (const room of socket.rooms) {
-    if (room !== socket.id) {
-      // Notify others in the room that this user left unexpectedly
-      socket.to(room).emit("call-end");
+  socket.on("disconnecting", () => {
+    for (const room of socket.rooms) {
+      if (room !== socket.id) {
+        socket.to(room).emit("call-end");
+      }
     }
-  }
-});
+  });
 });
 
-// Start Services
-server.listen(5000, () => {
-  console.log("🚀 Know2Flow Backend running on port 5000");
+/* ---------------- START SERVER ---------------- */
+const PORT = process.env.PORT || 5000;
+
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on ${PORT}`);
 });
