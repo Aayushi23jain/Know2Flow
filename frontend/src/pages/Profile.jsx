@@ -218,13 +218,22 @@ export default function Profile() {
       }); // ✅ CLOSE onSnapshot HERE
     });
 
-    fetch(`https://know2flow-1.onrender.com/user/${userId}`)
+    fetch(`https://know2flow-1.onrender.com/user/${userId}`, { credentials: "include" })
       .then((r) => {
-        if (!r.ok) throw new Error("User not found");
+        if (!r.ok) {
+          console.error(`Profile fetch failed with status ${r.status}`);
+          throw new Error("User not found");
+        }
         return r.json();
       })
-      .then((data) => setUser(data))
-      .catch((e) => setError(e.message || "Failed to load"))
+      .then((data) => {
+        console.log("Profile data loaded:", data);
+        setUser(data);
+      })
+      .catch((e) => {
+        console.error("Profile error:", e);
+        setError(e.message || "Failed to load");
+      })
       .finally(() => setLoading(false));
 
     return () => {

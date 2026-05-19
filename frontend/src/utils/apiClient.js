@@ -5,6 +5,7 @@ export const apiCall = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
   
   const defaultOptions = {
+    credentials: 'include', // ✅ CRITICAL: Send cookies with every request
     headers: {
       'Content-Type': 'application/json',
     },

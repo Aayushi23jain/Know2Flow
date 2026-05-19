@@ -17,12 +17,20 @@ export default function Matches() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
     })
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          console.error(`Search profiles failed with status ${res.status}`);
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.json();
+      })
       .then((data) => {
+        console.log("Matches loaded:", data);
         setMatches(data.matches || []);
         setLoading(false);
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error("Matches fetch error:", err);
         setMatches([]);
         setLoading(false);
       });
