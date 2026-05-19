@@ -2,21 +2,27 @@ import { admin } from "../firebase.js";
 
 const socketAuth = async (socket, next) => {
   try {
+    let sessionCookie = null;
+    
+    // Try to get from cookies first
     const cookieHeader = socket.handshake.headers.cookie;
-
-    if (!cookieHeader) {
-      return next(new Error("Unauthorized: No cookies"));
+    if (cookieHeader) {
+      const cookies = Object.fromEntries(
+        cookieHeader.split("; ").map(c => c.split("="))
+      );
+      sessionCookie = cookies.session;
     }
 
-    // Parse cookies safely
-    const cookies = Object.fromEntries(
-      cookieHeader.split("; ").map(c => c.split("="))
-    );
-
-    const sessionCookie = cookies.session;
+    // If no cookie, try Authorization header
+    if (!sessionCookie) {
+      const authHeader = socket.handshake.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        sessionCookie = authHeader.substring(7);
+      }
+    }
 
     if (!sessionCookie) {
-      return next(new Error("Unauthorized: No session cookie"));
+      return next(new Error("Unauthorized: No session token"));
     }
 
     // Verify Firebase session cookie

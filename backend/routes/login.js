@@ -132,10 +132,11 @@ router.post("/", async (req, res) => {
     } catch (err) {
       console.warn("Failed to update login stats:", err.message || err);
     }
-    // Step 5: Send userId back to frontend
+    // Step 5: Send token back to frontend (for localStorage)
     res.status(200).json({
       message: "Login successful ✅",
-      userId, // return UID so frontend can store and send in headers
+      userId,
+      token: sessionCookie, // ✅ Frontend will store this in localStorage
     });
   } catch (error) {
     console.error("Login error:", error.message);
