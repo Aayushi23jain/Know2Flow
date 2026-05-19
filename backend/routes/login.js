@@ -77,8 +77,8 @@ router.post("/", async (req, res) => {
     const options = {
       maxAge: expiresIn,
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax", // was 'strict' — change to 'lax' so browser will send cookie for fetches
+      secure: true, // ✅ Always true for HTTPS (production)
+      sameSite: "none", // ✅ CRITICAL: Allow cross-domain cookies (Firebase → Render)
       encode: String,
     };
 
